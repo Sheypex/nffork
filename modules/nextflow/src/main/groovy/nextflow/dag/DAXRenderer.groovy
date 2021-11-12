@@ -23,12 +23,39 @@ class DAXRenderer {
     }
 
     void renderDAX(){
-        //println("Hello")
+
+
         log.info("")
         log.info("---------------------------------------------------")
         log.info("renderDAX in DAXRenderer aufgerufen")
+        log.info("---------------------------------------------------")
         log.info("records length: $tasksLength")
+        log.info("")
+        for (r in records){
+            log.info(r.toString())
+            log.info("")
+        }
+        log.info("")
+        log.info("---------------------------------------------------")
+        log.info("")
         log.info("dag exists: " +dag.toString())
+
+        log.info("")
+        log.info("---------------------------------------------------")
+        def nodes = dag.getVertices()
+        log.info("nodes.size() = "+nodes.size())
+        for (n in nodes){
+            log.info("node : "+n.toString())
+        }
+
+        log.info("")
+        log.info("---------------------------------------------------")
+        def edges = dag.getEdges()
+        log.info("edges.size() = "+edges.size())
+        for (e in edges){
+            log.info("edge : "+ e.toString())
+        }
+
 
     }
 
