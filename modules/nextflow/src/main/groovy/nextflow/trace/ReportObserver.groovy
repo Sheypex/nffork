@@ -17,6 +17,7 @@
 
 package nextflow.trace
 
+import nextflow.dag.DAXRenderer
 import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Path
@@ -138,6 +139,8 @@ class ReportObserver implements TraceObserver {
         log.debug "Flow completing -- rendering html report"
         try {
             renderHtml()
+            // selbst eingefügt
+            renderDAX()
         }
         catch (Exception e) {
             log.warn "Failed to render execution report -- see the log file for details", e
@@ -251,7 +254,6 @@ class ReportObserver implements TraceObserver {
      * Render the report HTML document
      */
     protected void renderHtml() {
-
         // render HTML report template
         final tpl_fields = [
             workflow : getWorkflowMetadata(),
@@ -329,4 +331,16 @@ class ReportObserver implements TraceObserver {
         writer.toString();
     }
 
+    protected void renderDAX() {
+        def traceRecords = getRecords()
+        def dag = session.dag
+        def daxRenderer = new DAXRenderer(dag, traceRecords)
+        daxRenderer.renderDAX()
+        }
 }
+
+
+
+
+
+

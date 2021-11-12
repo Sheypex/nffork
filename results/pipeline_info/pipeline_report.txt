@@ -1,0 +1,60 @@
+----------------------------------------------------
+                                        ,--./,-.
+        ___     __   __   __   ___     /,-._.--~\
+  |\ | |__  __ /  ` /  \ |__) |__         }  {
+  | \| |       \__, \__/ |  \ |___     \`-._,-`-,
+                                        `._,._,'
+  nf-core/methylseq v1.6.1
+----------------------------------------------------
+
+Run Name: gloomy_banach
+
+## nf-core/methylseq execution completed successfully! ##
+
+
+The workflow was completed at 2021-11-12T12:58:54.715922+01:00 (duration: 2m 32s)
+
+The command used to launch the workflow was as follows:
+
+  ./launch.sh run nf-core/methylseq -profile test,docker
+
+
+
+Pipeline Configuration:
+-----------------------
+ - Pipeline Release: master
+ - Run Name: gloomy_banach
+ - Input: null
+ - Aligner: bismark
+ - Data Type: Single-End
+ - Fasta Ref: https://github.com/nf-core/test-datasets/raw/methylseq/reference/genome.fa
+ - Fasta Index: https://github.com/nf-core/test-datasets/raw/methylseq/reference/genome.fa.fai
+ - Trimming: 5'R1: 0 / 5'R2: 0 / 3'R1: 0 / 3'R2: 0
+ - Deduplication: Yes
+ - Directional Mode: Yes
+ - All C Contexts: No
+ - Cytosine report: No
+ - Output dir: ./results
+ - Launch dir: /Users/frederic.risling/Desktop/Bachelorarbeit/nextflow
+ - Working dir: /Users/frederic.risling/Desktop/Bachelorarbeit/nextflow/work
+ - Pipeline dir: /Users/frederic.risling/.nextflow/assets/nf-core/methylseq
+ - User: frederic.risling
+ - Config Profile: test,docker
+ - Container: docker - nfcore/methylseq:1.6.1
+ - Max Resources: 6 GB memory, 2 cpus, 2d time per job
+ - Config Profile Description: Minimal test dataset to check pipeline function
+ - Config Files: /Users/frederic.risling/.nextflow/assets/nf-core/methylseq/nextflow.config
+ - Date Started: 2021-11-12T12:56:22.857387+01:00
+ - Date Completed: 2021-11-12T12:58:54.715922+01:00
+ - Pipeline script file path: /Users/frederic.risling/.nextflow/assets/nf-core/methylseq/main.nf
+ - Pipeline script hash ID: 18179884b6320ca99aa10bcca5ebb512
+ - Pipeline repository Git URL: https://github.com/nf-core/methylseq
+ - Pipeline repository Git Commit: 03972a686bedeb2920803cd575f4d671e9135af0
+ - Pipeline Git branch/tag: master
+ - Nextflow Version: 21.09.1.edge
+ - Nextflow Build: 5636
+ - Nextflow Compile Timestamp: 28-10-2021 15:20 UTC
+
+--
+nf-core/methylseq
+https://github.com/nf-core/methylseq

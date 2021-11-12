@@ -300,9 +300,6 @@ class CmdRun extends CmdBase implements HubOptions {
         }
 
         def info = CmdInfo.status( log.isTraceEnabled() )
-        log.debug( '\n'+info )
-
-        // -- add this run to the local history
         runner.verifyAndTrackHistory(launcher.cliString, runName)
 
         // -- run it!
