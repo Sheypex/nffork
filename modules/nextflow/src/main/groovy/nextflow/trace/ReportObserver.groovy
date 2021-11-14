@@ -340,7 +340,7 @@ class ReportObserver implements TraceObserver {
         String name = session.getWorkflowMetadata().projectName
         def split = name.split("/")
         Path path = Paths.get(System.getProperty("user.dir")+"/results/pipeline_info/"+split[1]+".dax")
-        def daxRenderer = new DAXRenderer(dag, traceRecords, path)
+        def daxRenderer = new DAXRenderer(dag, traceRecords, path, split[1])
         daxRenderer.renderDAX()
         }
 }
