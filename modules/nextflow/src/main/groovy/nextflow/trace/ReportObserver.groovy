@@ -30,6 +30,9 @@ import nextflow.processor.TaskHandler
 import nextflow.processor.TaskId
 import nextflow.processor.TaskProcessor
 import nextflow.script.WorkflowMetadata
+
+import java.nio.file.Paths
+
 /**
  * Render pipeline report processes execution.
  * Based on original TimelineObserver code by Paolo Di Tommaso
@@ -334,7 +337,10 @@ class ReportObserver implements TraceObserver {
     protected void renderDAX() {
         def traceRecords = getRecords()
         def dag = session.dag
-        def daxRenderer = new DAXRenderer(dag, traceRecords)
+        String name = session.getWorkflowMetadata().projectName
+        def split = name.split("/")
+        Path path = Paths.get(System.getProperty("user.dir")+"/results/pipeline_info/"+split[1]+".dax")
+        def daxRenderer = new DAXRenderer(dag, traceRecords, path)
         daxRenderer.renderDAX()
         }
 }
