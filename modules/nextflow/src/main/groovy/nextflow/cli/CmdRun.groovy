@@ -539,24 +539,5 @@ class CmdRun extends CmdBase implements HubOptions {
         }
     }
 
-    protected String resolveConfig(Path baseDir) {
-
-        if( !withTower )
-            return null
-
-        final config = new ConfigBuilder()
-                .setShowClosures(true)
-                .setOptions(launcher.options)
-                .setCmdRun(this)
-                .setBaseDir(baseDir)
-                .buildConfigObject()
-
-        // strip secret
-        SecretHelper.hideSecrets(config)
-
-        ConfigHelper.toCanonicalString(config, false)
-    }
-
-
 }
 
