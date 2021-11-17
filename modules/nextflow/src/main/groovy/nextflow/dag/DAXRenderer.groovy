@@ -72,7 +72,6 @@ class DAXRenderer {
         log.info("---------------------------------------------------")
         log.info("renderDAX in DAXRenderer aufgerufen")
         log.info("---------------------------------------------------")
-        //log.info("records length: $tasksLength")
         log.info("")
         for (r in records){
             log.info(r.toString())
@@ -80,11 +79,15 @@ class DAXRenderer {
         }
         log.info("")
         log.info("---------------------------------------------------")
-        log.info("")
-        log.info("dag exists: " +dag.toString())
-
+        log.info("Records übersichtlich")
+        for (r in records){
+            log.info("task_id: " + r.value.get("task_id").toString() + ", name: " + r.value.get("name") \
+                    + ", process :" + r.value.get("process").toString() )
+            log.info("")
+        }
         log.info("")
         log.info("---------------------------------------------------")
+
         def nodes = dag.getVertices()
         log.info("nodes.size() = "+nodes.size())
         for (n in nodes){
@@ -147,7 +150,8 @@ class DAXRenderer {
             //<uses>-element
             w.writeStartElement("uses")
             //def input_edges = edges.stream()
-            writeInputEdges(id, w)
+
+            writeInputEdges(record.value, w)
             //close <uses/>
             w.writeEndElement()
             //close </job>
@@ -162,8 +166,17 @@ class DAXRenderer {
 
     }
 
-    void writeInputEdges(String id, XMLStreamWriter w){
+    void writeInputEdges(TraceRecord record, XMLStreamWriter w){
         //w.writeAttribute("file", "hihihi")
+        if(records.values().stream().filter(r -> r.get("process").toString() == \
+                record.get("process").toString()).count()==1){
+            def edges = dag.edges.stream()
+                                    .filter(edge -> edge.to.label == record.get("process"))
+                                    //.filter()–-–--–––––––-––––––-----------------------------------------
+        }
+        else {
+            w.writeAttribute("zweiprozess", "true")
+        }
 
     }
 
