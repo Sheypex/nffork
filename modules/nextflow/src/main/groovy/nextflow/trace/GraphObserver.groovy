@@ -17,6 +17,9 @@
 
 package nextflow.trace
 
+import nextflow.dag.DAXRenderer
+import nextflow.processor.TaskId
+
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -52,6 +55,13 @@ class GraphObserver implements TraceObserver {
 
     boolean overwrite
 
+    //My additions:
+    private Session session
+    static final public int DEF_MAX_TASKS =10_000
+    final private Map<TaskId, TraceRecord> records = new LinkedHashMap<>()
+    private int maxTasks = DEF_MAX_TASKS
+    private ResourcesAggregator aggregator
+
     String getFormat() { format }
 
     String getName() { name }
@@ -66,6 +76,8 @@ class GraphObserver implements TraceObserver {
     @Override
     void onFlowCreate(Session session) {
         this.dag = session.dag
+        this.session = session
+        this.aggregator = new ResourcesAggregator(session)
     }
 
     @Override
@@ -91,6 +103,8 @@ class GraphObserver implements TraceObserver {
         else if( format == 'gexf' )
             new GexfRenderer(name)
 
+        else if ( format == 'dax')
+            new DAXRenderer(name, records, session)
         else
             new GraphvizRenderer(name, format)
     }
@@ -104,21 +118,61 @@ class GraphObserver implements TraceObserver {
 
     @Override
     void onProcessSubmit(TaskHandler handler, TraceRecord trace) {
-
+        log.trace "Trace report - submit process > $handler"
+        synchronized (records) {
+            records[ trace.taskId ] = trace
+        }
     }
 
     @Override
     void onProcessStart(TaskHandler handler, TraceRecord trace) {
-
+        log.trace "Trace report - start process > $handler"
+        synchronized (records) {
+            records[ trace.taskId ] = trace
+        }
     }
 
     @Override
     void onProcessComplete(TaskHandler handler, TraceRecord trace) {
-
+        log.trace "Trace report - complete process > $handler"
+        if( !trace ) {
+            log.debug "WARN: Unable to find trace record for task id=${handler.task?.id}"
+            return
+        }
+        synchronized (records) {
+            records[ trace.taskId ] = trace
+            aggregate(trace)
+        }
     }
 
     @Override
     boolean enableMetrics() {
-        return false
+        return true
+    }
+
+    @Override
+    void onProcessCached(TaskHandler handler, TraceRecord trace) {
+        log.trace "Trace report - cached process > $handler"
+
+        // event was triggered by a stored task, ignore it
+        if( trace == null ) {
+            return
+        }
+
+        // remove the record from the current records
+        synchronized (records) {
+            records[ trace.taskId ] = trace
+            aggregate(trace)
+        }
+    }
+
+    /**
+     * Aggregates task record for each process in order to render the
+     * final execution stats
+     *
+     * @param record A {@link TraceRecord} object representing a task executed
+     */
+    protected void aggregate(TraceRecord record) {
+        aggregator.aggregate(record)
     }
 }

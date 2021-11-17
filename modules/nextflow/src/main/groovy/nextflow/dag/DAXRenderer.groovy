@@ -1,5 +1,6 @@
 package nextflow.dag
 
+import nextflow.Session
 import nextflow.processor.TaskId
 import nextflow.trace.TraceRecord
 import groovy.text.GStringTemplateEngine
@@ -21,7 +22,7 @@ import groovy.transform.PackageScope
  * Renders the minimal DAG in .dax Format for simulations in Wrench (https://wrench-project.org/)
  * @author Frederic Risling
  */
-class DAXRenderer {
+class DAXRenderer implements DagRenderer{
 
     /**
      * The current DAG
@@ -44,6 +45,10 @@ class DAXRenderer {
      */
     private String namespace
 
+    private String name
+    private Session session
+
+
     /**
      * Finals for creating the .dax file
      */
@@ -65,45 +70,29 @@ class DAXRenderer {
         this.namespace = namespace
     }
 
+    DAXRenderer(String name, Map<TaskId, TraceRecord> records, Session session){
+        this.name = name
+        this.records = records
+        this.session = session
+        this.namespace = generateNamespace()
+    }
+
+    void renderDocument(DAG dag, Path file){
+        this.dag = dag
+        this.path = file
+        log.info("---------------------------------------------------------------------")
+        log.info("renderDocument was started  ")
+        log.info("records.size: "+records.size())
+        log.info("DAG.vertices.size: "+dag.vertices.size())
+        log.info("DAG.edges.size: "+dag.edges.size())
+        renderDAX()
+    }
+
     void renderDAX(){
 
-
-        log.info("")
-        log.info("---------------------------------------------------")
-        log.info("renderDAX in DAXRenderer aufgerufen")
-        log.info("---------------------------------------------------")
-        log.info("")
-        for (r in records){
-            log.info(r.toString())
-            log.info("")
-        }
-        log.info("")
-        log.info("---------------------------------------------------")
-        log.info("Records übersichtlich")
-        for (r in records){
-            log.info("task_id: " + r.value.get("task_id").toString() + ", name: " + r.value.get("name") \
-                    + ", process :" + r.value.get("process").toString() )
-            log.info("")
-        }
-        log.info("")
-        log.info("---------------------------------------------------")
-
-        def nodes = dag.getVertices()
-        log.info("nodes.size() = "+nodes.size())
-        for (n in nodes){
-            log.info("node : "+n.toString())
-        }
-
-        log.info("")
-        log.info("---------------------------------------------------")
-        def edges = dag.getEdges()
-        log.info("edges.size() = "+edges.size())
-        for (e in edges){
-            log.info("edge : "+ e.toString())
-        }
         //XML File erstellen
         final Charset charset = Charset.defaultCharset()
-        Writer bw = Files.newBufferedWriter(path, charset)
+        Writer bw = Files.newBufferedWriter(this.path, charset)
         final XMLOutputFactory xof = XMLOutputFactory.newFactory()
         final XMLStreamWriter w = xof.createXMLStreamWriter(bw)
         w.writeStartDocument(charset.displayName(), "1.0")
@@ -122,6 +111,7 @@ class DAXRenderer {
         //TODO: Attribut childCount
 
         //List of files
+        def edges = dag.edges
         w.writeComment(" part 1: list of all referenced files (may be empty) ")
         def refFiles = edges.stream()
             .filter(edge -> edge.from != null)
@@ -129,6 +119,7 @@ class DAXRenderer {
             .map(edge -> edge.from.label.toString())
             .toArray()
         for (file in refFiles ){
+            if(file.toString()=="null"){break}
             w.writeStartElement("file")
             w.writeAttribute("name", file.toString())
             w.writeEndElement()
@@ -178,6 +169,12 @@ class DAXRenderer {
             w.writeAttribute("zweiprozess", "true")
         }
 
+    }
+
+    String generateNamespace(){
+        String name = session.getWorkflowMetadata().projectName
+        def split = name.split("/")
+        return split[1]
     }
 
 }
