@@ -142,7 +142,7 @@ class DAXRenderer implements DagRenderer {
                 .filter(edge -> edge.from.type == DAG.Type.ORIGIN)
                 .map(edge ->
                         edge.from.label.toString())
-                        .toArray()
+                .toArray()
         for (file in refFiles) {
             if (file.toString() == "null") {
                 break
@@ -157,7 +157,7 @@ class DAXRenderer implements DagRenderer {
         for (record in records) {
             //add files to file list
             addFilesForRecord(record.value)
-            files.forEach(file -> log.info(file.name +" "+file.fromId+ " size: "+ file.fileSize.toString()))
+            files.forEach(file -> log.info(file.name + " " + file.toIds.toString() + " size: " + file.fileSize.toString()))
             //<job>-element + attributes
             w.writeStartElement("job")
             String id = record.value.get("task_id").toString()
@@ -194,15 +194,22 @@ class DAXRenderer implements DagRenderer {
     }
 
     void writeInputEdges(TraceRecord record, XMLStreamWriter w) {
-        w.writeStartElement("uses")
-        if (records.values().stream().filter(r -> r.get("process").toString() ==  \
-                 record.get("process").toString()).count() == 1) {
-            def edges = dag.edges.stream()
-                    .filter(edge -> edge.to.label == record.get("process"))
-            w.writeCharacters("inputfiles")
-        } else {
-            w.writeCharacters("inputfiles")
+        log.warn("task: "+record.get("name")+files.stream()
+                .filter(file -> file.toIds.contains(record.get("task_id").toString()))
+                .count().toString())
+        FileDependency[] inputs = files.stream()
+                    .filter(file -> file.toIds.contains(record.get("task_id").toString()))
+                    .toArray()
+        for (i in inputs){
+            w.writeStartElement("uses")
+            w.writeAttribute("file", i.name)
+            w.writeAttribute("link", "input")
+            w.writeAttribute("size", i.fileSize.toString())
+            w.writeEndElement()
         }
+
+        w.writeStartElement("uses")
+
         w.writeEndElement()
     }
 
@@ -257,18 +264,17 @@ class DAXRenderer implements DagRenderer {
                     .toArray()
             for (f in inputFiles) {
                 String fileName = f.toString().split(" ").last()
-                Path pathFrom = Paths.get(f.toString().split(" ").first())
-                String fromId = record.get("task_id")
-                //file size in kilo bytes
-                long fileSize = Files.size(pathFrom)/1024
-                files.add(new FileDependency(fileName, pathFrom, fromId, fileSize))
+                Path pathTo = Paths.get(f.toString().split(" ").first())
+                String toId = record.get("task_id")
+                //file size
+                long fileSize = Files.size(pathTo)
+                files.add(new FileDependency(fileName, pathTo, toId, fileSize, false))
             }
             fstream.close()
         } catch (Exception e) {
             log.error("Error: " + e.getMessage())
         }
     }
-
 
 
     class FileDependency {
@@ -279,17 +285,47 @@ class DAXRenderer implements DagRenderer {
         List<String> toIds = new ArrayList<>()
         Double fileSize
 
-        FileDependency(String name, Path directoryFrom, String fromId, Long fileSize) {
-            this.name = name
-            this.directoryFrom = directoryFrom
-            this.fromId = fromId
-            this.fileSize = fileSize
+        FileDependency(String name, Path directory, String id, Long fileSize, boolean output) {
+            if (output) {
+                this.name = name
+                this.directoryFrom = directory
+                this.fromId = id
+                this.fileSize = fileSize
+            } else {
+                this.name = name
+                this.directoriesTo.add(directory)
+                this.toIds.add(id)
+                this.fileSize = fileSize
+            }
         }
 
-        void addDirecoriesTo(Path to, String toId) {
+
+        void addDirectoriesTo(Path to, String toId) {
             directoriesTo.add(to)
             toIds.add(toId)
         }
+
+        void addDirectoryFrom(Path from, String fromId) {
+            if (directoryFrom != null || this.fromId != null) {
+                log.error("input directory already exist for this file")
+            } else {
+                this.directoryFrom = from
+                this.fromId = fromId
+            }
+        }
+
+        boolean hasInputs(FileDependency entry) {
+            if (entry.fromId == null || entry.directoryFrom == null) {
+                return false
+            } else return true
+        }
+
+        boolean hasOutputs(FileDependency entry) {
+            if (entry.toIds.size() == 0 || entry.directoriesTo.size() == 0) return false
+            else return true
+        }
+
+        //void add(){}
 
     }
 
