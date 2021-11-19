@@ -157,7 +157,7 @@ class DAXRenderer implements DagRenderer {
         for (record in records) {
             //add files to file list
             addFilesForRecord(record.value)
-            files.forEach(file -> log.info(file.name + " " + file.toIds.toString() + " size: " + file.fileSize.toString()))
+            //files.forEach(file -> log.info(file.name + " " + file.toIds.toString() + " size: " + file.fileSize.toString()))
             //<job>-element + attributes
             w.writeStartElement("job")
             String id = record.value.get("task_id").toString()
@@ -194,9 +194,6 @@ class DAXRenderer implements DagRenderer {
     }
 
     void writeInputEdges(TraceRecord record, XMLStreamWriter w) {
-        log.warn("task: "+record.get("name")+files.stream()
-                .filter(file -> file.toIds.contains(record.get("task_id").toString()))
-                .count().toString())
         FileDependency[] inputs = files.stream()
                     .filter(file -> file.toIds.contains(record.get("task_id").toString()))
                     .toArray()
@@ -207,16 +204,20 @@ class DAXRenderer implements DagRenderer {
             w.writeAttribute("size", i.fileSize.toString())
             w.writeEndElement()
         }
-
-        w.writeStartElement("uses")
-
-        w.writeEndElement()
     }
 
     void writeOutputEdges(TraceRecord record, XMLStreamWriter w) {
-        w.writeStartElement("uses")
-        w.writeCharacters("outputfiles")
-        w.writeEndElement()
+        FileDependency[] outputs = files.stream()
+                .filter(file -> file.fromId==record.get("task_id").toString())
+                .toArray()
+        for (o in outputs){
+            w.writeStartElement("uses")
+            w.writeAttribute("file", o.name)
+            w.writeAttribute("link", "output")
+            w.writeAttribute("size", o.fileSize.toString())
+            w.writeEndElement()
+        }
+
     }
 
     void writeDependencies(XMLStreamWriter w) {
@@ -224,19 +225,19 @@ class DAXRenderer implements DagRenderer {
     }
 
     void addFilesForRecord(TraceRecord record) {
-
-        //log.warn("erster TraceRecord erreicht")
+        //the directory for this record
         Path path = Paths.get(record.get("workdir"))
+        //the list of input files
+        List<FileDependency> inputFiles = new ArrayList<>()
+
         log.warn("path string: " + path.toString())
-        //log.info("path size: " + path.size())
-        //path.eachFile { it -> log.info(it.name) }
-        log.info("")
+
         def commandFile = Files.walk(path)
                 .map(file -> file.toFile())
                 .filter(file -> file.name == ".command.run")
                 .findFirst()
                 .get()
-        //parse input and output files
+        //parse input files
         try {
             FileInputStream fstream = new FileInputStream(commandFile)
             BufferedReader br = new BufferedReader(new InputStreamReader(fstream))
@@ -245,36 +246,79 @@ class DAXRenderer implements DagRenderer {
             def outputsString
             for (int i = 0; i < lines.size(); i++) {
                 if (lines.get(i).contains("# stage input files")) {
-                    //log.info("found input files!")
                     int count = 1
                     while (!lines.get(i + count).contains("}")) {
                         inputsString.add(lines.get(i + count))
-                        log.info(lines.get(i + count))
+                        //log.info(lines.get(i + count))
                         count++
                     }
                 }
             }
-
-            log.info("")
-            log.info("--------------------------------------------------------------------")
-            def inputFiles = inputsString.stream()
+            String[] inputFilesString = inputsString.stream()
                     .filter(s -> s.contains("/"))
                     .map(s -> s.split(" "))
                     .map(s -> s[s.size() - 2] + " " + s[s.size() - 1])
                     .toArray()
-            for (f in inputFiles) {
+
+            for (f in inputFilesString) {
                 String fileName = f.toString().split(" ").last()
                 Path pathTo = Paths.get(f.toString().split(" ").first())
                 String toId = record.get("task_id")
                 //file size
                 long fileSize = Files.size(pathTo)
-                files.add(new FileDependency(fileName, pathTo, toId, fileSize, false))
+
+                FileDependency addInput = new FileDependency(fileName, pathTo, toId, fileSize, false)
+                files.add(addInput)
+                inputFiles.add(addInput)
             }
+
             fstream.close()
         } catch (Exception e) {
             log.error("Error: " + e.getMessage())
         }
+
+        //String list of input files
+        String[] inputsString = files.stream()
+                                .filter(file -> file.toIds.contains(record.get("task_id").toString()))
+                                .map(file -> file.name)
+                                .toArray()
+        //parse output file
+        File[] outputFiles = Files.walk(path)
+                .map(file -> file.toFile())
+                .filter(file -> !file.name.startsWith("."))
+                .filter(file -> file.name.contains("."))
+                .filter(file -> !file.name.contains("log"))
+                .filter(file -> !file.name.contains("err"))
+                .filter(file -> !file.name.contains("info"))
+                .filter(file -> !inputsString.contains(file.name))
+                .toArray()
+        for( file in outputFiles){
+            //check whether file already exists
+            if(inputsString.contains(file.name)){
+                files.stream().filter(f -> f.name == file.name)
+                                .each {it -> it.addDirectoryFrom(file.toPath(), record.get("task_id").toString())}
+            }
+                //file doesn't exist
+            else{
+                FileDependency output = new FileDependency(file.name, file.toPath(), record.get("task_id").toString(), file.size(), true)
+                files.add(output)
+            }
+        }
+
+
+        //log.info("Path: " + path.toString())
+        //log.info("files without .xyz: " + outputFiles2.toString())
+        //log.info("total number of files: " + Files.walk(path).count().toString())
+        //log.info("")
+        log.info("Current Files size: " + files.size())
+
     }
+
+//    boolean inputsContainThis(String fileName, String[] inputFiles){
+//        log.info("inputFiles Array: " + inputFiles.toString())
+//
+//        return false
+//    }
 
 
     class FileDependency {
