@@ -254,7 +254,7 @@ class DAXRenderer implements DagRenderer {
                     }
                 }
             }
-            //def inputSize = inputsString.stream().filter(s -> s.startsWith("ln -s")).count()
+
             log.info("")
             log.info("--------------------------------------------------------------------")
             def inputFiles = inputsString.stream()
