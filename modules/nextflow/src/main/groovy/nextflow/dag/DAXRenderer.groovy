@@ -3,8 +3,6 @@ package nextflow.dag
 import nextflow.Session
 import nextflow.processor.TaskId
 import nextflow.trace.TraceRecord
-import groovy.text.GStringTemplateEngine
-import groovy.transform.CompileStatic
 import groovy.util.logging.Slf4j
 
 import javax.xml.stream.XMLOutputFactory
@@ -13,9 +11,7 @@ import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.text.SimpleDateFormat
-import java.util.logging.Logger
 import java.nio.file.Path
-import groovy.transform.PackageScope
 
 @Slf4j
 
@@ -85,29 +81,6 @@ class DAXRenderer implements DagRenderer {
     void renderDocument(DAG dag, Path file) {
         this.dag = dag
         this.path = file
-        log.info("---------------------------------------------------------------------")
-        log.info("renderDocument was started  ")
-        log.info("---------------------------------------------------------------------")
-        log.info("records.size: " + records.size())
-        log.info("")
-//        for (r in records) {
-//            log.info(r.toString())
-//            log.info("")
-//        }
-//        log.info("---------------------------------------------------------------------")
-//        log.info("DAG.vertices.size: " + dag.vertices.size())
-//        log.info("")
-//        for (n in dag.vertices) {
-//            log.info(n.getName() + " " + n.toString())
-//            log.info("")
-//        }
-//        log.info("---------------------------------------------------------------------")
-//        log.info("DAG.edges.size: " + dag.edges.size())
-//        log.info("")
-//        for (edge in dag.edges) {
-//            log.info("DAG.edge--> label:" + edge.label + " from: " + edge.from.name + " " + edge.from + " to: " + edge.to.name + " " + edge.to)
-//            log.info("")
-//        }
         renderDAX()
     }
 
@@ -157,7 +130,6 @@ class DAXRenderer implements DagRenderer {
         for (record in records) {
             //add files to file list
             addFilesForRecord(record.value)
-            //files.forEach(file -> log.info(file.name + " " + file.toIds.toString() + " size: " + file.fileSize.toString()))
             //<job>-element + attributes
             w.writeStartElement("job")
             String id = record.value.get("task_id").toString()
@@ -176,7 +148,6 @@ class DAXRenderer implements DagRenderer {
             //close </job>
             w.writeEndElement()
         }
-
         //Dependencies
         w.writeComment(" part 3: list of control-flow dependencies (may be empty) ")
         writeDependencies(w)
@@ -221,7 +192,34 @@ class DAXRenderer implements DagRenderer {
     }
 
     void writeDependencies(XMLStreamWriter w) {
+        List<FileDependency> dependencies = connectInputsAndOutputs()
+                                            .stream()
+                                            .filter(dep -> dep.toIds.size()>0)
+                                            .filter(dep->dep.fromId!=null)
+                                            .toArray()
 
+        for (record in records){
+            def id = record.value.get("task_id")
+            FileDependency[] dependenciesForRecord = dependencies.stream()
+                                            .filter(dep -> dep.toIds.contains(id.toString()))
+                                            .toArray()
+            List<String> alreadyWritten = new ArrayList()
+            if(dependenciesForRecord.size()<1) continue
+            w.writeStartElement("child")
+            w.writeAttribute("ref", id.toString())
+            for (dep in dependenciesForRecord){
+                if(alreadyWritten.contains(dep.fromId)){
+                    continue
+                }
+                else{
+                    w.writeStartElement("parent")
+                    w.writeAttribute("ref", dep.fromId)
+                    w.writeEndElement()
+                    alreadyWritten.add(dep.fromId.toString())
+                }
+            }
+            w.writeEndElement()
+        }
     }
 
     void addFilesForRecord(TraceRecord record) {
@@ -229,8 +227,6 @@ class DAXRenderer implements DagRenderer {
         Path path = Paths.get(record.get("workdir"))
         //the list of input files
         List<FileDependency> inputFiles = new ArrayList<>()
-
-        log.warn("path string: " + path.toString())
 
         def commandFile = Files.walk(path)
                 .map(file -> file.toFile())
@@ -249,7 +245,6 @@ class DAXRenderer implements DagRenderer {
                     int count = 1
                     while (!lines.get(i + count).contains("}")) {
                         inputsString.add(lines.get(i + count))
-                        //log.info(lines.get(i + count))
                         count++
                     }
                 }
@@ -266,7 +261,6 @@ class DAXRenderer implements DagRenderer {
                 String toId = record.get("task_id")
                 //file size
                 long fileSize = Files.size(pathTo)
-
                 FileDependency addInput = new FileDependency(fileName, pathTo, toId, fileSize, false)
                 files.add(addInput)
                 inputFiles.add(addInput)
@@ -276,12 +270,13 @@ class DAXRenderer implements DagRenderer {
         } catch (Exception e) {
             log.error("Error: " + e.getMessage())
         }
-
         //String list of input files
         String[] inputsString = files.stream()
-                                .filter(file -> file.toIds.contains(record.get("task_id").toString()))
+                                //.filter(file -> file.toIds.contains(record.get("task_id").toString()))
+                                .filter(file -> file.fromId == null)
                                 .map(file -> file.name)
                                 .toArray()
+
         //parse output file
         File[] outputFiles = Files.walk(path)
                 .map(file -> file.toFile())
@@ -298,27 +293,38 @@ class DAXRenderer implements DagRenderer {
                 files.stream().filter(f -> f.name == file.name)
                                 .each {it -> it.addDirectoryFrom(file.toPath(), record.get("task_id").toString())}
             }
-                //file doesn't exist
+            //file doesn't exist
             else{
                 FileDependency output = new FileDependency(file.name, file.toPath(), record.get("task_id").toString(), file.size(), true)
                 files.add(output)
             }
         }
-
-
-        //log.info("Path: " + path.toString())
-        //log.info("files without .xyz: " + outputFiles2.toString())
-        //log.info("total number of files: " + Files.walk(path).count().toString())
-        //log.info("")
-        log.info("Current Files size: " + files.size())
-
     }
 
-//    boolean inputsContainThis(String fileName, String[] inputFiles){
-//        log.info("inputFiles Array: " + inputFiles.toString())
-//
-//        return false
-//    }
+    List<FileDependency> connectInputsAndOutputs(){
+        ArrayList<FileDependency> inputs = files.stream()
+                                        .filter(file -> file.toIds.size()>0)
+                                        .toArray()
+
+        ArrayList<FileDependency> outputs = files.stream()
+                                        .filter(file -> file.fromId!=null)
+                                        .toArray()
+
+        ArrayList<FileDependency> ret = new ArrayList<>()
+        for (output in outputs){
+            ArrayList<FileDependency> dependentOn = inputs.stream()
+                                    .filter(input -> input.name == output.name)
+                                    .toArray()
+            for (dep in dependentOn){
+                FileDependency f = new FileDependency(output.name, output.directoryFrom, output.fromId, output.fileSize, true)
+                f.toIds.add(dep.toIds.first())
+                f.directoriesTo.add(dep.directoriesTo.first())
+                ret.add(f)
+            }
+
+        }
+        return ret
+    }
 
 
     class FileDependency {
@@ -327,7 +333,7 @@ class DAXRenderer implements DagRenderer {
         List<Path> directoriesTo = new ArrayList<>()
         String fromId
         List<String> toIds = new ArrayList<>()
-        Double fileSize
+        Long fileSize
 
         FileDependency(String name, Path directory, String id, Long fileSize, boolean output) {
             if (output) {
@@ -342,7 +348,6 @@ class DAXRenderer implements DagRenderer {
                 this.fileSize = fileSize
             }
         }
-
 
         void addDirectoriesTo(Path to, String toId) {
             directoriesTo.add(to)
@@ -369,8 +374,10 @@ class DAXRenderer implements DagRenderer {
             else return true
         }
 
-        //void add(){}
-
+        String toString(){
+            return "name: " + this.name + " fromId: " + this.fromId + " directoryFrom: " + this.directoryFrom.toString() \
+                    + " toIds: " + this.toIds.toString() + " directoriesTo: " + this.directoriesTo.toString()
+        }
     }
 
 }
