@@ -43,50 +43,59 @@ class DAXRenderer implements DagRenderer {
      */
     private String namespace
 
-    private String name
+    /**
+     * the current session for this workflow
+     */
     private Session session
 
+    /**
+     * the list of input and output files of all executed tasks
+     */
     private List<FileDependency> files
+
+    /**
+     * helper Map to avoid duplicate output file-names in the .dax file
+     */
+    private Map<String, Integer> duplicates
 
 
     /**
-     * Finals for creating the .dax file
+     * Finals for creating the header information in the .dax file
      */
     private static final String XMLNS = "http://pegasus.isi.edu/schema/DAX"
     private static final String XMLNS_XSI = "http://www.w3.org/2001/XMLSchema-instance"
     private static final String XSI_LOCATION = XMLNS + " http://pegasus.isi.edu/schema/dax-2.1.xsd"
     private static final String VERSION = "2.1"
 
-
     /**
-     * Create a DAXRenderer
-     * @param dag
+     * Constructor of a DAXRenderer
      * @param records
+     * @param session
      */
-    DAXRenderer(dag, records, path, namespace) {
-        this.dag = dag
-        this.records = records
-        this.path = path
-        this.namespace = namespace
-    }
-
-    DAXRenderer(String name, Map<TaskId, TraceRecord> records, Session session) {
-        this.name = name
+    DAXRenderer(Map<TaskId, TraceRecord> records, Session session) {
         this.records = records
         this.session = session
         this.namespace = generateNamespace()
         this.files = new ArrayList<FileDependency>()
+        this.duplicates = new HashMap<String, Integer>()
     }
 
+    /**
+     * Overrides the renderDocument() method of the DagRenderer Interface
+     * @param dag
+     * @param file
+     */
     void renderDocument(DAG dag, Path file) {
         this.dag = dag
         this.path = file
         renderDAX()
     }
 
+    /**
+     * creates a <filename>.dax representation in the current directory
+     */
     void renderDAX() {
-
-        //XML File erstellen
+        //Create .dax file Header and meta information
         final Charset charset = Charset.defaultCharset()
         Writer bw = Files.newBufferedWriter(this.path, charset)
         final XMLOutputFactory xof = XMLOutputFactory.newFactory()
@@ -106,15 +115,13 @@ class DAXRenderer implements DagRenderer {
         //TODO: Attribut fileCount
         //TODO: Attribut childCount
 
-        //List of files
+        //Part 1: List of all referenced files
         def edges = dag.edges
         w.writeComment(" part 1: list of all referenced files (may be empty) ")
         def refFiles = edges.stream()
-                .filter(edge -> edge.from
-                        != null)
+                .filter(edge -> edge.from != null)
                 .filter(edge -> edge.from.type == DAG.Type.ORIGIN)
-                .map(edge ->
-                        edge.from.label.toString())
+                .map(edge -> edge.from.label.toString())
                 .toArray()
         for (file in refFiles) {
             if (file.toString() == "null") {
@@ -125,7 +132,7 @@ class DAXRenderer implements DagRenderer {
             w.writeEndElement()
         }
 
-        //List of Jobs
+        //Part 2: List of all executed Jobs
         w.writeComment(" part 2: definition of all jobs (at least one) ")
         for (record in records) {
             //add files to file list
@@ -140,7 +147,6 @@ class DAXRenderer implements DagRenderer {
             double realtime = record.value.get("realtime") / 1000
             w.writeAttribute("runtime", Double.toString(realtime))
             w.writeAttribute("numcores", record.value.get("cpus").toString())
-
             //input files
             writeInputEdges(record.value, w)
             //output files
@@ -162,64 +168,6 @@ class DAXRenderer implements DagRenderer {
         String name = session.getWorkflowMetadata().projectName
         def split = name.split("/")
         return split[1]
-    }
-
-    void writeInputEdges(TraceRecord record, XMLStreamWriter w) {
-        FileDependency[] inputs = files.stream()
-                    .filter(file -> file.toIds.contains(record.get("task_id").toString()))
-                    .toArray()
-        for (i in inputs){
-            w.writeStartElement("uses")
-            w.writeAttribute("file", i.name)
-            w.writeAttribute("link", "input")
-            w.writeAttribute("size", i.fileSize.toString())
-            w.writeEndElement()
-        }
-    }
-
-    void writeOutputEdges(TraceRecord record, XMLStreamWriter w) {
-        FileDependency[] outputs = files.stream()
-                .filter(file -> file.fromId==record.get("task_id").toString())
-                .toArray()
-        for (o in outputs){
-            w.writeStartElement("uses")
-            w.writeAttribute("file", o.name)
-            w.writeAttribute("link", "output")
-            w.writeAttribute("size", o.fileSize.toString())
-            w.writeEndElement()
-        }
-
-    }
-
-    void writeDependencies(XMLStreamWriter w) {
-        List<FileDependency> dependencies = connectInputsAndOutputs()
-                                            .stream()
-                                            .filter(dep -> dep.toIds.size()>0)
-                                            .filter(dep->dep.fromId!=null)
-                                            .toArray()
-
-        for (record in records){
-            def id = record.value.get("task_id")
-            FileDependency[] dependenciesForRecord = dependencies.stream()
-                                            .filter(dep -> dep.toIds.contains(id.toString()))
-                                            .toArray()
-            List<String> alreadyWritten = new ArrayList()
-            if(dependenciesForRecord.size()<1) continue
-            w.writeStartElement("child")
-            w.writeAttribute("ref", id.toString())
-            for (dep in dependenciesForRecord){
-                if(alreadyWritten.contains(dep.fromId)){
-                    continue
-                }
-                else{
-                    w.writeStartElement("parent")
-                    w.writeAttribute("ref", dep.fromId)
-                    w.writeEndElement()
-                    alreadyWritten.add(dep.fromId.toString())
-                }
-            }
-            w.writeEndElement()
-        }
     }
 
     void addFilesForRecord(TraceRecord record) {
@@ -272,10 +220,10 @@ class DAXRenderer implements DagRenderer {
         }
         //String list of input files
         String[] inputsString = files.stream()
-                                //.filter(file -> file.toIds.contains(record.get("task_id").toString()))
-                                .filter(file -> file.fromId == null)
-                                .map(file -> file.name)
-                                .toArray()
+        //.filter(file -> file.toIds.contains(record.get("task_id").toString()))
+                .filter(file -> file.fromId == null)
+                .map(file -> file.name)
+                .toArray()
 
         //parse output file
         File[] outputFiles = Files.walk(path)
@@ -291,13 +239,95 @@ class DAXRenderer implements DagRenderer {
             //check whether file already exists
             if(inputsString.contains(file.name)){
                 files.stream().filter(f -> f.name == file.name)
-                                .each {it -> it.addDirectoryFrom(file.toPath(), record.get("task_id").toString())}
+                        .each {it -> it.addDirectoryFrom(file.toPath(), record.get("task_id").toString())}
             }
             //file doesn't exist
             else{
                 FileDependency output = new FileDependency(file.name, file.toPath(), record.get("task_id").toString(), file.size(), true)
                 files.add(output)
             }
+        }
+    }
+
+    void writeInputEdges(TraceRecord record, XMLStreamWriter w) {
+        FileDependency[] inputs = files.stream()
+                    .filter(file -> file.toIds.contains(record.get("task_id").toString()))
+                    .toArray()
+        for (i in inputs){
+            w.writeStartElement("uses")
+            w.writeAttribute("file", i.name)
+            w.writeAttribute("link", "input")
+            w.writeAttribute("size", i.fileSize.toString())
+            w.writeEndElement()
+        }
+    }
+
+    void writeOutputEdges(TraceRecord record, XMLStreamWriter w) {
+        FileDependency[] outputs = files.stream()
+                .filter(file -> file.fromId==record.get("task_id").toString())
+                .toArray()
+        for (o in outputs){
+            w.writeStartElement("uses")
+            w.writeAttribute("file", normalizeOutputFileName(o.name))
+            w.writeAttribute("actual_file", o.name)
+            w.writeAttribute("link", "output")
+            w.writeAttribute("size", o.fileSize.toString())
+            w.writeEndElement()
+        }
+
+    }
+
+    String normalizeOutputFileName(String filename){
+        int count = files.stream().filter(file -> file.fromId != null)
+                .filter(file -> file.name == filename.toString()).count()
+
+        ArrayList<FileDependency> outputs= files.stream().filter(file -> file.fromId != null)
+                .filter(file -> file.name == filename).toArray()
+        if(count > 1){
+            //log.info("!!!!!!  duplicates.get($filename): "+ duplicates.get(filename).toString())
+            if(duplicates.get(filename) == null) {
+                duplicates.put(filename, 1)
+                //log.warn(duplicates.get(filename) + " files with this name: " + filename)
+            }
+            else{
+                int current_number = duplicates.get(filename)
+                duplicates.replace(filename, current_number+1)
+                //log.info(duplicates.get(filename.toString()) + " files with this name: " + filename)
+            }
+        }
+        //log.info(duplicates.toString())
+
+        return filename
+    }
+
+    void writeDependencies(XMLStreamWriter w) {
+        List<FileDependency> dependencies = connectInputsAndOutputs()
+                                            .stream()
+                                            .filter(dep -> dep.toIds.size()>0)
+                                            .filter(dep->dep.fromId!=null)
+                                            .toArray()
+
+        for (record in records){
+            def id = record.value.get("task_id")
+            FileDependency[] dependenciesForRecord = dependencies.stream()
+                                            .filter(dep -> dep.toIds.contains(id.toString()))
+                                            .toArray()
+            List<String> alreadyWritten = new ArrayList()
+            if(dependenciesForRecord.size()<1) continue
+            w.writeStartElement("child")
+            w.writeAttribute("ref", id.toString())
+            for (dep in dependenciesForRecord){
+                if(alreadyWritten.contains(dep.fromId)){
+                    continue
+                }
+                else{
+                    w.writeStartElement("parent")
+                    w.writeAttribute("ref", dep.fromId)
+                    w.writeEndElement()
+                    alreadyWritten.add(dep.fromId.toString())
+                }
+            }
+            w.writeEndElement()
         }
     }
 

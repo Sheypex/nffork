@@ -104,7 +104,7 @@ class GraphObserver implements TraceObserver {
             new GexfRenderer(name)
 
         else if ( format == 'dax')
-            new DAXRenderer(name, records, session)
+            new DAXRenderer(records, session)
         else
             new GraphvizRenderer(name, format)
     }
