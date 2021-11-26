@@ -360,11 +360,7 @@ class DAXRenderer implements DagRenderer {
                             .filter(file -> !file.output)
                             .filter(file -> file.taskId == record.value.get("task_id").toString())
                             .toArray()
-            //if there are no inputs for this task then it has no dependencies
-            log.info("----------------------------")
-            log.info(record.value.get("task_id").toString())
-            log.info(inputs.length + ": inputs for this task")
-
+            //save the parents for this task
             List<String> parents = new ArrayList<>()
 
             for (input in inputs){
@@ -373,12 +369,13 @@ class DAXRenderer implements DagRenderer {
                         .filter(file -> file.name == input.name)
                         .map(file -> file.taskId)
                         .toArray()
-
+                //add the parents for this file to the parents list for this task
                 parents.addAll(parentsForInput)
                 }
+            //eliminate duplicates
             String[] parents_array = parents.stream().distinct().toArray()
-            log.info(parents_array.toString())
 
+            //print on the xml file
             if(parents_array.length>0){
                 //<child ref="xyz">
                 w.writeStartElement("child")
