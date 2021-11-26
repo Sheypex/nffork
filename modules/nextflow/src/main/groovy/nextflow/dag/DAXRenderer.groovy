@@ -156,7 +156,7 @@ class DAXRenderer implements DagRenderer {
         }
         //Dependencies
         w.writeComment(" part 3: list of control-flow dependencies (may be empty) ")
-        writeDependencies2(w)
+        writeDependencies(w)
         w.writeEndElement()
         w.writeEndDocument()
         w.flush()
@@ -287,7 +287,7 @@ class DAXRenderer implements DagRenderer {
         //write down all the output-files for this task
         for (o in outputs){
             w.writeStartElement("uses")
-            w.writeAttribute("file", o.tag + "_" + o.name)
+            w.writeAttribute("file", "task_id_"+o.taskId+ "_" + o.name)
             w.writeAttribute("link", "output")
             w.writeAttribute("size", o.fileSize.toString())
             w.writeEndElement()
@@ -295,63 +295,8 @@ class DAXRenderer implements DagRenderer {
 
     }
 
-    void writeDependencies(XMLStreamWriter w) {
-        List<FileDependency> dependencies = connectInputsAndOutputs()
-                                            .stream()
-                                            .filter(dep -> dep.toIds.size()>0)
-                                            .filter(dep->dep.fromId!=null)
-                                            .toArray()
 
-        for (record in records){
-            def id = record.value.get("task_id")
-            FileDependency[] dependenciesForRecord = dependencies.stream()
-                                            .filter(dep -> dep.toIds.contains(id.toString()))
-                                            .toArray()
-            List<String> alreadyWritten = new ArrayList()
-            if(dependenciesForRecord.size()<1) continue
-            w.writeStartElement("child")
-            w.writeAttribute("ref", id.toString())
-            for (dep in dependenciesForRecord){
-                if(alreadyWritten.contains(dep.fromId)){
-                    continue
-                }
-                else{
-                    w.writeStartElement("parent")
-                    w.writeAttribute("ref", dep.fromId)
-                    w.writeEndElement()
-                    alreadyWritten.add(dep.fromId.toString())
-                }
-            }
-            w.writeEndElement()
-        }
-    }
-
-    List<FileDependency> connectInputsAndOutputs(){
-        ArrayList<FileDependency> inputs = files.stream()
-                                        .filter(file -> file.toIds.size()>0)
-                                        .toArray()
-
-        ArrayList<FileDependency> outputs = files.stream()
-                                        .filter(file -> file.fromId!=null)
-                                        .toArray()
-
-        ArrayList<FileDependency> ret = new ArrayList<>()
-        for (output in outputs){
-            ArrayList<FileDependency> dependentOn = inputs.stream()
-                                    .filter(input -> input.name == output.name)
-                                    .toArray()
-            for (dep in dependentOn){
-                FileDependency f = new FileDependency(output.name, output.directoryFrom, output.fromId, output.fileSize, true)
-                f.toIds.add(dep.toIds.first())
-                f.directoriesTo.add(dep.directoriesTo.first())
-                ret.add(f)
-            }
-
-        }
-        return ret
-    }
-
-    void writeDependencies2(XMLStreamWriter w){
+    void writeDependencies(XMLStreamWriter w){
         w.writeComment(" part 3: list of control-flow dependencies (may be empty) ")
 
         for (record in records){
