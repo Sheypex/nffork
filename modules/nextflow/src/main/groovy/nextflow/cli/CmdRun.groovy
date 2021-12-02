@@ -17,8 +17,6 @@
 
 package nextflow.cli
 
-import nextflow.util.ConfigHelper
-import nextflow.util.SecretHelper
 
 import java.nio.file.Path
 import java.util.regex.Pattern
@@ -359,6 +357,13 @@ class CmdRun extends CmdBase implements HubOptions {
             log.info "Launching `$script` [$runName] - revision: ${result.getScriptId()?.substring(0,10)}"
             return result
         }
+
+
+        // Benchmark the executing System.
+        // SystemBenchmark(true) --> invoke a SystemBenchmark for local execution
+        // BenchmarkFalse(false) --> invoke a SystemBenchmark for cluster execution
+        SystemBenchmark sb = new SystemBenchmark(true)
+        sb.renderHardwareDocument()
 
         /*
          * try to look for a pipeline in the repository
