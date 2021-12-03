@@ -158,7 +158,7 @@ class DAXRenderer implements DagRenderer {
             w.writeAttribute("namespace", namespace)
             String name = record.value.get("name")
             w.writeAttribute("name", name)
-            double realtime = record.value.get("duration") / 1000
+            double realtime = record.value.get("realtime") / 1000
             w.writeAttribute("runtime", Double.toString(realtime))
             w.writeAttribute("numcores", record.value.get("cpus").toString())
 
