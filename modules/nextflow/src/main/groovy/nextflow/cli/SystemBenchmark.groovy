@@ -1,23 +1,12 @@
 package nextflow.cli
 
 import groovy.util.logging.Slf4j
-import nextflow.script.params.InputsList
-import org.w3c.dom.Document
-
-import javax.xml.parsers.DocumentBuilder
-import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.stream.XMLOutputFactory
 import javax.xml.stream.XMLStreamWriter
-import javax.xml.transform.OutputKeys
-import javax.xml.transform.Transformer
-import javax.xml.transform.TransformerFactory
-import javax.xml.transform.dom.DOMSource
-import javax.xml.transform.stream.StreamResult
 import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.Executors
-import java.util.function.Consumer
+
 
 @Slf4j
 class SystemBenchmark {
@@ -42,17 +31,18 @@ class SystemBenchmark {
     }
 
     void renderForLocalHardware(){
-        //GFlops
+        //Benchmark GFlops
         log.info("Benchmarking FLOPS ...")
         String gflops = executeArrayFireScript()
         log.info("$gflops GFlops")
 
-        //Cores
+        //Get number of cores
         ArrayList<String> coresRaw = executeCommand(["getconf","_NPROCESSORS_ONLN"])
         String cores = coresRaw.first()
 
         //write speed of memory
-        String rawTransferredMiB = executeSysbenchCommand(["sysbench", "memory", "run"], "transferred", "transferred", 1)
+        String rawTransferredMiB = executeSysbenchCommand(["sysbench", "memory", "run"], \
+        "transferred", "transferred", 1)
         Double transferredMiB = rawTransferredMiB.substring(2, rawTransferredMiB.length()-1).split(" ")[0].toDouble()
         // convert MiB to MB
         Double transferredMB = transferredMiB * 1.048576
@@ -62,8 +52,9 @@ class SystemBenchmark {
         File file = new File("/")
         //Convert Byte to Gibibyte (GiB) by dividing by 1.074e+9
         int space = file.totalSpace/1.074e+9
-        log.info("total space: " + space.toString())
+        //log.info("total space: " + space.toString())
 
+        //write the batch_host_local.xml file with the benchmark results from above
         writeHostsXMLFileLocal(gflops, cores, transferredMB.toString(), space.toString())
     }
 
@@ -164,8 +155,11 @@ class SystemBenchmark {
         //write links
         writeLinksLocal(w)
 
-        //write routes
+        //write network routes
         writeRoutesLocal(w)
+
+        //write loopback routes
+        writeLoopbackRoutesLocal(w)
 
         //</zone>
         w.writeCharacters("\n\t")
@@ -237,11 +231,148 @@ class SystemBenchmark {
 
     }
 
-    void writeLinksLocal(XMLStreamWriter){
+    void writeLinksLocal(XMLStreamWriter w){
+        //<!-- A network link -->
+        w.writeCharacters("\n\n\t\t")
+        w.writeComment(" A network link ")
+        //<link id="network_link" bandwidth="5000GBps" latency="0us"/>
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("link")
+        w.writeAttribute("id", "network_link")
+        w.writeAttribute("bandwidth", "5000GBps")
+        w.writeAttribute("latency", "0us")
+        w.writeEndElement()
+
+        //<!-- Host1's local "loopback" link...-->
+        w.writeCharacters("\n\t\t")
+        w.writeComment(" Host1's local \"loopback\" link...")
+        //<link id="loopback_Host1" bandwidth="1000EBps" latency="0us"/>
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("link")
+        w.writeAttribute("id", "loopback_Host1")
+        w.writeAttribute("bandwidth", "1000EBps")
+        w.writeAttribute("latency", "0us")
+        w.writeEndElement()
+
+        //<!-- Host2's local "loopback" link...-->
+        w.writeCharacters("\n\t\t")
+        w.writeComment(" Host2's local \"loopback\" link...")
+        //<link id="loopback_Host2" bandwidth="1000EBps" latency="0us"/>
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("link")
+        w.writeAttribute("id", "loopback_Host2")
+        w.writeAttribute("bandwidth", "1000EBps")
+        w.writeAttribute("latency", "0us")
+        w.writeEndElement()
+
+        //<!-- Host3's local "loopback" link...-->
+        w.writeCharacters("\n\t\t")
+        w.writeComment(" Host3's local \"loopback\" link...")
+        //<link id="loopback_Host3" bandwidth="1000EBps" latency="0us"/>
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("link")
+        w.writeAttribute("id", "loopback_Host3")
+        w.writeAttribute("bandwidth", "1000EBps")
+        w.writeAttribute("latency", "0us")
+        w.writeEndElement()
+    }
+
+    void writeRoutesLocal(XMLStreamWriter w){
+        w.writeCharacters("\n\n\n\t\t")
+        //<!-- The network link connects all hosts together -->
+        w.writeComment(" The network link connects all hosts together ")
+
+        //<route src="Host1" dst="Host2">
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("route")
+        w.writeAttribute("src", "Host1")
+        w.writeAttribute("dst", "Host2")
+        //  <link_ctn id="network_link"/>
+        w.writeCharacters("\n\t\t\t")
+        w.writeStartElement("link_ctn")
+        w.writeAttribute("id", "network_link")
+        w.writeEndElement()
+        //</route>
+        w.writeCharacters("\n\t\t")
+        w.writeEndElement()
+
+        //<route src="Host1" dst="Host3">
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("route")
+        w.writeAttribute("src", "Host1")
+        w.writeAttribute("dst", "Host3")
+        //  <link_ctn id="network_link"/>
+        w.writeCharacters("\n\t\t\t")
+        w.writeStartElement("link_ctn")
+        w.writeAttribute("id", "network_link")
+        w.writeEndElement()
+        //</route>
+        w.writeCharacters("\n\t\t")
+        w.writeEndElement()
+
+        //<route src="Host2" dst="Host3">
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("route")
+        w.writeAttribute("src", "Host2")
+        w.writeAttribute("dst", "Host3")
+        //  <link_ctn id="network_link"/>
+        w.writeCharacters("\n\t\t\t")
+        w.writeStartElement("link_ctn")
+        w.writeAttribute("id", "network_link")
+        w.writeEndElement()
+        //</route>
+        w.writeCharacters("\n\t\t")
+        w.writeEndElement()
 
     }
 
-    void writeRoutesLocal(XMLStreamWriter){
+    void writeLoopbackRoutesLocal(XMLStreamWriter w){
+        w.writeCharacters("\n\n\n\t\t")
+        //<!-- Each loopback link connects each host to itself -->
+        w.writeComment(" Each loopback link connects each host to itself ")
+
+        //<route src="Host1" dst="Host1">
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("route")
+        w.writeAttribute("src", "Host1")
+        w.writeAttribute("dst", "Host1")
+        //  <link_ctn id="network_link"/>
+        w.writeCharacters("\n\t\t\t")
+        w.writeStartElement("link_ctn")
+        w.writeAttribute("id", "loopback_Host1")
+        w.writeEndElement()
+        //</route>
+        w.writeCharacters("\n\t\t")
+        w.writeEndElement()
+
+        //<route src="Host2" dst="Host2">
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("route")
+        w.writeAttribute("src", "Host2")
+        w.writeAttribute("dst", "Host2")
+        //  <link_ctn id="network_link"/>
+        w.writeCharacters("\n\t\t\t")
+        w.writeStartElement("link_ctn")
+        w.writeAttribute("id", "loopback_Host2")
+        w.writeEndElement()
+        //</route>
+        w.writeCharacters("\n\t\t")
+        w.writeEndElement()
+
+        //<route src="Host3" dst="Host3">
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("route")
+        w.writeAttribute("src", "Host3")
+        w.writeAttribute("dst", "Host3")
+        //  <link_ctn id="network_link"/>
+        w.writeCharacters("\n\t\t\t")
+        w.writeStartElement("link_ctn")
+        w.writeAttribute("id", "loopback_Host3")
+        w.writeEndElement()
+
+        //</route>
+        w.writeCharacters("\n\t\t")
+        w.writeEndElement()
 
     }
 
@@ -250,7 +381,6 @@ class SystemBenchmark {
     }
 
     static String removeOptionalFromString(String optional){
-
         String split1 = optional.split("Optional")[1]
         return split1.substring(1, split1.length()-1)
     }
