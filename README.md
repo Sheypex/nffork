@@ -281,21 +281,22 @@ Read more http://www.yourkit.com
 IMPORTANT: Dependencies for this Wrench Extension
 =======
 
-This extension generates a DAG in the .dax Format that can be used for Workflow Simulations in <a href='https://wrench-project.org/' target='_blank'>WRENCH</a>. In addition to the workflow.dax file it also generates a host.xml file which represents the harware the workflow was executed on. 
+This extension generates a DAG in the .dax Format that can be used for Workflow Simulations in <a href='https://wrench-project.org/' target='_blank'>WRENCH</a>. In addition to the workflow.dax file it also generates a host.xml file which represents the hardware the workflow was executed on. 
 
 ## Requirements for this Extension:
 
   * [sysbench](https://github.com/akopytov/sysbench): global installation of sysbench on your system
-  * [ArrayFire](https://arrayfire.org/docs/index.htm)
+  * [ArrayFire](https://arrayfire.org/docs/index.htm): has to be installed on the system
 
 ## Run
-- the host.xml file will be generated before executing the workflow
-- the generation dag file has to be passed with the executing command: -with-dag <filename>.dax
+- the host.xml file will be generated and saved to the working directory before executing the workflow
+- the generation dag file has to be passed with the executing command: -with-dag <filename>.dax and is saved to the working directory
 Example Call (after compiling):
   
 ```
 ./launch.sh run nf-core/methylseq -profile test,docker -with-dag methylseq.dax
 ```
+
  
 
 
