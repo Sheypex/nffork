@@ -287,6 +287,8 @@ This extension generates a DAG in the .dax Format that can be used for Workflow 
 
   * [sysbench](https://github.com/akopytov/sysbench): global installation of sysbench on your system
   * [ArrayFire](https://arrayfire.org/docs/index.htm): has to be installed on the system
+  * [CMake](https://cmake.org/): is required to run ArrayFire
+
 
 ## Run
 - the host.xml file will be generated and saved to the working directory before executing the workflow
