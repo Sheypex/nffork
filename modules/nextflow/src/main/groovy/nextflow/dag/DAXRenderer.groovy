@@ -277,15 +277,21 @@ class DAXRenderer implements DagRenderer {
                 .toArray()
 
         //add output-files to files List
-        for( file in outputFiles){
-            Path filePath = file.toPath()
-            FileDependency addOutput = new FileDependency(file.name, record.get("task_id").toString(), filePath, \
-                                                    record.get("tag").toString(), Files.size(filePath), true)
-            files.add(addOutput)
+        try {
+            for (file in outputFiles) {
+                Path filePath = file.toPath()
+                FileDependency addOutput = new FileDependency(file.name, record.get("task_id").toString(), filePath, record.get("tag").toString(), Files.size(filePath), true)
+                files.add(addOutput)
+        }
             }
+        catch (IOException io){
+            io.printStackTrace()
+        }
+
     }
 
-    void writeInputEdges(TraceRecord record, XMLStreamWriter w) {
+    void writeInputEdges(
+            TraceRecord record, XMLStreamWriter w) {
 
         //filter all the inputs for this task
         FileDependency[] inputs = files.stream()
