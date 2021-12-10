@@ -348,6 +348,8 @@ class DAXRenderer implements DagRenderer {
                 ArrayList<String> parentsForInput = files.stream()
                         .filter(file -> file.output)
                         .filter(file -> file.name == input.name)
+                        //filter out cycles
+                        .filter(file -> file.taskId.toInteger()<record.value.taskId)
                         .map(file -> file.taskId)
                         .toArray()
                 //add the parents for this file to the parents list for this task
