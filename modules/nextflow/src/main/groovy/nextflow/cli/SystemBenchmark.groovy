@@ -33,29 +33,34 @@ class SystemBenchmark {
     void renderForLocalHardware(){
         //Benchmark GFlops
         log.info("Benchmarking FLOPS ...")
-        String gflops = executeArrayFireScript()
-        log.info("$gflops GFlops")
+        String gFlops = executeArrayFireScript()
+        log.info("$gFlops GFlops")
 
         //Get number of cores
         ArrayList<String> coresRaw = executeCommand(["getconf","_NPROCESSORS_ONLN"])
         String cores = coresRaw.first()
 
-        //write speed of memory
-        String rawTransferredMiB = executeSysbenchCommand(["sysbench", "memory", "run"], \
-        "transferred", "transferred", 1)
-        Double transferredMiB = rawTransferredMiB.substring(2, rawTransferredMiB.length()-1).split(" ")[0].toDouble()
-        // convert MiB to MB
-        Double transferredMB = transferredMiB * 1.048576
-        log.info("memory transferred MB per second: " + transferredMB.toString())
+        //read speed fileio
+        String rawReadSpeedData = executeSysbenchCommand(["sysbench", "--file-test-mode=seqrd", "fileio", "run"], \
+             "read, MiB/s", ":", 1)
+        Double readSpeedDataMiB = rawReadSpeedData.toDouble()
+        //convert to MBps
+        String readSpeed = (readSpeedDataMiB * 1.048576).round(3).toString()
+
+        //write speed fileio
+        String rawWriteSpeedData = executeSysbenchCommand(["sysbench", "--file-test-mode=seqwr", "fileio", "run"], \
+             "written, MiB/s", ":", 1)
+        Double writeSpeedDataMiB = rawWriteSpeedData.toDouble()
+        //convert to MBps
+        String writeSpeed = (writeSpeedDataMiB * 1.048576).round(3).toString()
 
         //disk size
         File file = new File("/")
         //Convert Byte to Gibibyte (GiB) by dividing by 1.074e+9
         int space = file.totalSpace/1.074e+9
-        //log.info("total space: " + space.toString())
 
         //write the batch_host_local.xml file with the benchmark results from above
-        writeHostsXMLFileLocal(gflops, cores, transferredMB.toString(), space.toString())
+        writeHostsXMLFileLocal(gFlops, cores, readSpeed, writeSpeed, space.toString())
     }
 
     String executeArrayFireScript(){
@@ -122,7 +127,7 @@ class SystemBenchmark {
         }
     }
 
-    void writeHostsXMLFileLocal(String gflops, String cores, String transferSpeed, String diskSize){
+    void writeHostsXMLFileLocal(String gFlops, String cores, String readSpeed, String writeSpeed, String diskSize){
         Path path = new File((System.getProperty("user.dir")+"/batch_host_local.xml")).toPath()
         final Charset charset = Charset.defaultCharset()
         Writer bw = Files.newBufferedWriter(path, charset)
@@ -150,7 +155,7 @@ class SystemBenchmark {
         w.writeCharacters("\n")
 
         //write hosts
-        writeHostsLocal(w, gflops, cores, transferSpeed, diskSize)
+        writeHostsLocal(w, gFlops, cores, readSpeed, writeSpeed, diskSize)
 
         //write links
         writeLinksLocal(w)
@@ -176,12 +181,12 @@ class SystemBenchmark {
 
     }
 
-    void writeHostsLocal(XMLStreamWriter w, String gflops, String cores, String transferSpeed, String diskSize){
+    void writeHostsLocal(XMLStreamWriter w, String gFlops, String cores, String readSpeed, String writeSpeed, String diskSize){
         //<host id="Host1" speed="xyzGf" core="xy"/>
         w.writeCharacters("\t\t")
         w.writeStartElement("host")
         w.writeAttribute("id", "Host1")
-        w.writeAttribute("speed", gflops + "Gf")
+        w.writeAttribute("speed", gFlops + "Gf")
         w.writeAttribute("core", cores)
         w.writeEndElement()
         w.writeCharacters("\n")
@@ -190,7 +195,7 @@ class SystemBenchmark {
         w.writeCharacters("\t\t")
         w.writeStartElement("host")
         w.writeAttribute("id", "Host2")
-        w.writeAttribute("speed", gflops + "Gf")
+        w.writeAttribute("speed", gFlops + "Gf")
         w.writeAttribute("core", cores)
         w.writeEndElement()
         w.writeCharacters("\n")
@@ -199,15 +204,18 @@ class SystemBenchmark {
         w.writeCharacters("\t\t")
         w.writeStartElement("host")
         w.writeAttribute("id", "Host3")
-        w.writeAttribute("speed", gflops + "Gf")
+        w.writeAttribute("speed", gFlops + "Gf")
         w.writeAttribute("core", cores)
         //<disk id="large_disk" read_bw="xyzMBps" write_bw="xyzMBps">
         w.writeCharacters("\n\t\t\t")
         w.writeStartElement("disk")
         w.writeAttribute("id", "large_disk")
-        String transferSpeedRounded = transferSpeed.toDouble().round(0).toInteger().toString()
-        w.writeAttribute("read_bw", transferSpeedRounded+"MBps")
-        w.writeAttribute("write_bw", transferSpeedRounded+"MBps")
+
+        //WRENCH requires: readSpeed==writeSpeed --> Thus, we use the average of both
+        String avgDiskSpeed = ((readSpeed.toDouble()+writeSpeed.toDouble())/2).round(3).toString()
+        w.writeAttribute("read_bw", avgDiskSpeed+"MBps")
+        w.writeAttribute("write_bw", avgDiskSpeed+"MBps")
+
         //<prop id="size" value="XYZGiB"/>
         w.writeCharacters("\n\t\t\t\t")
         w.writeStartElement("prop")
