@@ -17,6 +17,8 @@
 
 package nextflow.k8s
 
+import nextflow.cli.SystemBenchmark
+
 import java.lang.reflect.Field
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
@@ -112,6 +114,10 @@ class K8sDriverLauncher {
      * @param args Workflow script positional parameters
      */
     void run(String name, List<String> args) {
+
+        //Benchmark cluster
+        new SystemBenchmark(false).renderHardwareDocument()
+
         this.args = args
         this.pipelineName = name
         this.interactive = name == 'login'
@@ -124,6 +130,8 @@ class K8sDriverLauncher {
         createK8sConfigMap()
         createK8sLauncherPod()
         waitPodStart()
+
+
         // login into container session
         if( interactive )
             launchLogin()

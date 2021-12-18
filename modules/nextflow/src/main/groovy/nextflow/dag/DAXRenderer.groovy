@@ -149,6 +149,9 @@ class DAXRenderer implements DagRenderer {
         //Part 2: List of all executed Jobs
         w.writeCharacters("\n")
         w.writeComment(" part 2: definition of all jobs (at least one) ")
+
+        //map entries are not sorted so first we have to sort them
+
         for (record in records) {
             //add files to file list
             addFilesForRecord(record.value)
@@ -159,7 +162,7 @@ class DAXRenderer implements DagRenderer {
             w.writeAttribute("namespace", namespace)
             String name = record.value.get("name")
             w.writeAttribute("name", name)
-            double realtime = record.value.get("duration") / 1000
+            double realtime = record.value.get("realtime") / 1000
             w.writeAttribute("runtime", Double.toString(realtime))
             w.writeAttribute("numcores", record.value.get("cpus").toString())
 

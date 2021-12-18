@@ -20,12 +20,13 @@ class SystemBenchmark {
     }
 
     void renderHardwareDocument(){
-        log.info("Render Hardware Document")
 
         if(local){
+            log.info("Render Hardware Document")
             renderForLocalHardware()
         }
         else {
+            log.info("Render Cluster Hardware Document")
             renderForClusterHardware()
         }
     }
