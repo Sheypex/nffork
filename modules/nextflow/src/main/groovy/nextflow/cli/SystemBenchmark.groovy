@@ -3,9 +3,12 @@ package nextflow.cli
 import groovy.util.logging.Slf4j
 import javax.xml.stream.XMLOutputFactory
 import javax.xml.stream.XMLStreamWriter
+import java.lang.reflect.Array
 import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Path
+
+import nextflow.k8s.client.*
 
 
 @Slf4j
@@ -14,9 +17,15 @@ class SystemBenchmark {
     private final String SIMGRID_DTD = "\"http://simgrid.gforge.inria.fr/simgrid/simgrid.dtd\""
     private final String VERSION = "4.1"
     private boolean local
+    private K8sClient api
 
     SystemBenchmark(boolean local){
-        this.local=local
+        this.local = local
+    }
+
+    SystemBenchmark(boolean local, K8sClient client){
+        this.local = local
+        this.api = client
     }
 
     void renderHardwareDocument(){
@@ -387,6 +396,58 @@ class SystemBenchmark {
 
     void renderForClusterHardware(){
 
+        //get all nodes
+//        ArrayList<String> resp = executeCommand([ "kubectl", "get", "nodes"])
+//        resp.forEach(it -> log.info(it))
+//        ArrayList<String> splitted = resp.first().split(" ")
+//        log.info("size after filtering: " + splitted.stream().filter(str -> str!= "").count())
+//
+//        def response = createSingleContainerPod("benchmark-z", "tests", \
+// "exampl", "arrayfire/arrayfire", ["sleep", "3600"] as String[])
+//        log.info("RESPONSE:" + response.toString())
+
+    }
+
+    K8sResponseJson createSingleContainerPod(String name, String namespace, String containerName, \
+ String containerImage, String[] command){
+
+        LinkedHashMap<String, Serializable> request = new LinkedHashMap<>()
+        request.put("apiVersion", "v1")
+        request.put("kind", "Pod")
+
+        //meta data
+        LinkedHashMap<String, Serializable> metaData = new LinkedHashMap<>()
+        metaData.put("name", name)
+        metaData.put("namespace", namespace)
+        //meta data labels
+        LinkedHashMap<String, Serializable> metaDataLabels = new LinkedHashMap<>()
+        metaDataLabels.put("app", "nextflow")
+        metaDataLabels.put("runName", name)
+
+        metaData.put("labels", metaDataLabels)
+
+        request.put("metadata", metaData)
+
+        //spec
+        LinkedHashMap<String, Serializable> spec = new LinkedHashMap<>()
+        //containers
+        LinkedHashMap<String, Serializable> containers = new LinkedHashMap<>()
+        containers.put("name", containerName)
+        containers.put("image", containerImage)
+
+        ArrayList<String> commandContainer = new ArrayList<>()
+        for(entry in command){
+            commandContainer.add(entry)
+        }
+        containers.put("command", commandContainer)
+
+        ArrayList<LinkedHashMap> containerList = new ArrayList<>()
+        containerList.add(containers)
+        spec.put("containers", containerList)
+
+        request.put("spec", spec)
+
+        return api.podCreate(request, null)
     }
 
     static String removeOptionalFromString(String optional){
@@ -394,6 +455,10 @@ class SystemBenchmark {
         return split1.substring(1, split1.length()-1)
     }
 
+    class k8sNode{
+        String name
+        //STATUS('Ready', )
+    }
 }
 
 
