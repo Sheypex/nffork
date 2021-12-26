@@ -17,6 +17,7 @@
 
 package nextflow.k8s
 
+import nextflow.cli.ClusterSystemBenchmark
 import nextflow.cli.SystemBenchmark
 
 import java.lang.reflect.Field
@@ -115,9 +116,6 @@ class K8sDriverLauncher {
      */
     void run(String name, List<String> args) {
 
-        //Benchmark cluster
-        new SystemBenchmark(false).renderHardwareDocument()
-
         this.args = args
         this.pipelineName = name
         this.interactive = name == 'login'
@@ -126,6 +124,11 @@ class K8sDriverLauncher {
         this.config = makeConfig(pipelineName)
         this.k8sConfig = makeK8sConfig(config)
         this.k8sClient = makeK8sClient(k8sConfig)
+
+        //Benchmark this cluster
+        SystemBenchmark benchmark = new ClusterSystemBenchmark(this.k8sClient)
+        benchmark.renderHardwareDocument()
+
         this.k8sConfig.checkStorageAndPaths(k8sClient)
         createK8sConfigMap()
         createK8sLauncherPod()

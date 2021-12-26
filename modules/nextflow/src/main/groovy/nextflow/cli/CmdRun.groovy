@@ -397,9 +397,7 @@ class CmdRun extends CmdBase implements HubOptions {
 
 
         // Benchmark the executing System.
-        // SystemBenchmark(true) --> invoke a SystemBenchmark for local execution
-        // BenchmarkFalse(false) --> invoke a SystemBenchmark for cluster execution
-        SystemBenchmark sb = new SystemBenchmark(true)
+        SystemBenchmark sb = new LocalSystemBenchmark()
         sb.renderHardwareDocument()
 
         /*
