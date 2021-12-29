@@ -21,17 +21,28 @@ class ClusterSystemBenchmark implements SystemBenchmark{
         List<K8sNode> nodes = getNodes()
         nodes.forEach(it->log.info("$it.name: $it.roles"))
 
-
+        //benchmark nodes
         for(node in nodes){
             submitGFlopsPod(node)
             log.info("Benchmarking node: " + node.name + " ...")
             Double gFlops = parseGFlopsForNode(node)
             node.setgFlops(gFlops)
-//            node.cores = getCores(node)
-//            node.disk = getDisk(node)
+            node.cores = getCores(node)
+            node.disk = getDisk(node)
             log.info(node.toString())
         }
-//        List<String> networkLink = benchmarkNetworkLink()
+
+        //benchmark network link
+        ArrayList<K8sNode> masterNodes = nodes.stream()
+                                            .filter(it -> it.roles.contains(K8sNode.Roles.MASTER))
+                                            .toArray()
+        ArrayList<K8sNode> workerNodes = nodes.stream()
+                                            .filter(it -> it.roles.contains(K8sNode.Roles.WORKER)
+                                                    || it.roles.contains(K8sNode.Roles.NONE))
+                                            .toArray()
+
+
+//TODO        List<String> networkLink = benchmarkNetworkLink()
     }
 
     List<K8sNode> getNodes(){
@@ -76,6 +87,7 @@ class ClusterSystemBenchmark implements SystemBenchmark{
     }
 
     void submitGFlopsPod(K8sNode node){
+
         Map<String, Serializable> request = new LinkedHashMap<>()
         String apiVersion = "v1"
         String kind = "Pod"
@@ -83,6 +95,11 @@ class ClusterSystemBenchmark implements SystemBenchmark{
         String name = "benchmarkgflops-"+ node.name
         String namespace = "default"
         request.putAll(makePodHead(apiVersion, kind, name, namespace))
+
+        //check if pod already exists
+        if(executeCommand(["kubectl", "get", "pod", name]).size()>1){
+            return
+        }
 
         //create spec
         //create container
@@ -165,6 +182,128 @@ class ClusterSystemBenchmark implements SystemBenchmark{
         containerProperties
     }
 
+    int getCores(K8sNode node){
+        String command = "kubectl describe node " + node.name  + " | grep 'cpu'"
+        List<String> response = executeCommand(["bash", "-c", command])
+        int cores
+        if(!response.get(1).contains("m")){
+            ArrayList<String> split = response.get(1).split(" ")
+            cores = split.stream()
+                    .filter(it -> it.isNumber())
+                    .map(it-> Integer.parseInt(it))
+                    .toArray()
+                    .first()
+            if(cores<1) cores = 1
+        }
+        else{
+            ArrayList<String> split = response.get(1).split(" ")
+            String core = split.stream()
+                .filter(it -> it.contains("m"))
+                .map(it -> Integer.parseInt(it.split("m")[0]))
+                .findFirst()
+                .toString().split("Optional")[1].substring(1).split("]")[0]
+            Double core_raw = Integer.parseInt(core)/1000
+            cores = core_raw.round(0).toInteger()
+            if(cores<1) cores = 1
+        }
+        cores
+    }
+
+    Disk getDisk(K8sNode node){
+        //getDiskSpace
+        String command = "kubectl describe node " + node.name  + " | grep 'ephemeral-storage'"
+        List<String> response = executeCommand(["bash", "-c", command])
+        String diskSpace = ""
+        try{
+            diskSpace = response.first().split(":")[1].replace(" ", "")+"B"
+        }
+        catch (ArrayIndexOutOfBoundsException){
+            log.info("node $node.name has no disk")
+        }
+        //if there is no disk return no disk
+        if(diskSpace.length()<4) return null
+
+        //benchmark readSpeed of Disk
+        submitDiskBenchmarkPod(node)
+        Tuple<String> readAndWriteSpeed = parseDiskSpeed(node)
+        new Disk(readAndWriteSpeed[0], readAndWriteSpeed[1], diskSpace)
+
+    }
+
+
+    void submitDiskBenchmarkPod(K8sNode node){
+
+        Map<String, Serializable> request = new LinkedHashMap<>()
+
+        String apiVersion = "v1"
+        String kind = "Pod"
+        //metaData
+        String name = "benchmark-disk-speed-"+ node.name
+        String namespace = "default"
+        request.putAll(makePodHead(apiVersion, kind, name, namespace))
+
+        //check if pod already exists
+        if(executeCommand(["kubectl", "get", "pod", name]).size()>1){
+            return
+        }
+
+        //create spec
+        //create container
+        String command = "sysbench --file-test-mode=seqrd fileio prepare; sysbench --file-test-mode=seqrd fileio run; sysbench --file-test-mode=seqwr fileio run;"
+        Map<String, Serializable> container = defineContainer("/bin/sh", ["-c", command],
+                "severalnines/sysbench", "sysbench-benchmark-speed-"+node.name, "5722Mi", 2)
+        ArrayList<Map<String, Serializable>> containerList = new ArrayList<>()
+        containerList.add(container)
+
+        Map<String, Serializable> spec = new LinkedHashMap<>()
+        spec.put("containers", containerList)
+        spec.put("restartPolicy", "Never")
+        spec.put("nodeName", node.name)
+
+        //add spec to req
+        request.put("spec", spec)
+
+        //create pod
+        api.podCreate(request, null).toString()
+    }
+
+    Tuple<String> parseDiskSpeed(K8sNode node){
+        String readSpeed
+        String writeSpeed
+        String diskPod = "benchmark-disk-speed-"+ node.name
+
+        while(!executeCommand(["kubectl", "get", "pod", diskPod]).get(1).contains("Completed")){
+            Thread.sleep(5000)
+        }
+        try{
+            //parse readSpeed
+            String command = "kubectl logs " + diskPod  + " | grep 'read, MiB/s'"
+            List<String> reads = executeCommand(["bash", "-c", command])
+            readSpeed = reads.stream().map(it -> it.split(":")[1].replace(" ", ""))
+                    .map(it -> Double.parseDouble(it))
+                    .filter(it -> it > 0)
+                    .map(it -> (it*1.048576).toString())
+                    .toArray()
+                    .first()
+
+            //parse writeSpeed
+            String command2 = "kubectl logs " + diskPod  + " | grep 'written, MiB/s'"
+            List<String> writes = executeCommand(["bash", "-c", command2])
+            writeSpeed = writes.stream().map(it -> it.split(":")[1].replace(" ", ""))
+                    .map(it -> Double.parseDouble(it))
+                    .filter(it -> it > 0)
+                    .map(it -> (it*1.048576).toString())
+                    .toArray()
+                    .first()
+        }
+        catch (Exception e){
+            e.printStackTrace()
+            log.warn("WARN: Could not benchmark GFlops for node: $node.name; \n" +
+                    " Possible causes: node unavailable or memory/cpu unsifficient")
+        }
+        return new Tuple<String>(readSpeed, writeSpeed)
+    }
+
 
     class K8sNode{
         String name
@@ -219,19 +358,23 @@ class ClusterSystemBenchmark implements SystemBenchmark{
             return "name: $name, ready: $ready, roles: $roles, gFlops: $gFlops, cores: $cores, disk: $disk"
         }
 
+    }
 
-        class Disk{
-            Double readSpeed
-            Double writeSpeed
-            Double size
+    class Disk{
+        String readSpeed
+        String writeSpeed
+        String size
 
-            Disk(Double readSpeed, Double writeSpeed, Double size){
-                this.readSpeed = readSpeed
-                this.writeSpeed = writeSpeed
-                this.size = size
-            }
+        Disk(String readSpeed, String writeSpeed, String size){
+            this.readSpeed = readSpeed
+            this.writeSpeed = writeSpeed
+            this.size = size
+        }
 
+        String toString(){
+            "Disk(readSpeed: $readSpeed, writeSpeed: $writeSpeed, size: $size)"
         }
 
     }
+
 }
