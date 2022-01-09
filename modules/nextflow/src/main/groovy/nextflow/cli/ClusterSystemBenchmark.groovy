@@ -4,7 +4,10 @@ import groovy.util.logging.Slf4j
 import nextflow.k8s.client.K8sClient
 import nextflow.k8s.client.K8sResponseJson
 
+import java.nio.file.Path
 import java.security.SecureRandom
+import java.util.regex.Pattern
+import java.util.stream.Stream
 
 @Slf4j
 class ClusterSystemBenchmark implements SystemBenchmark{
@@ -20,8 +23,7 @@ class ClusterSystemBenchmark implements SystemBenchmark{
         log.info("Benchmarking Cluster Hardware...")
         List<K8sNode> nodes = getNodes()
         nodes.forEach(it->log.info("$it.name: $it.roles"))
-
-        //benchmark nodes
+        //benchmark each node
         for(node in nodes){
             submitGFlopsPod(node)
             log.info("Benchmarking node: " + node.name + " ...")
@@ -31,18 +33,10 @@ class ClusterSystemBenchmark implements SystemBenchmark{
             node.disk = getDisk(node)
             log.info(node.toString())
         }
+        //benchmark network-bandwith
+        String networkBandwith = benchmarkNetworkLink()
+        log.info("Network Bandwith: $networkBandwith GBps")
 
-        //benchmark network link
-        ArrayList<K8sNode> masterNodes = nodes.stream()
-                                            .filter(it -> it.roles.contains(K8sNode.Roles.MASTER))
-                                            .toArray()
-        ArrayList<K8sNode> workerNodes = nodes.stream()
-                                            .filter(it -> it.roles.contains(K8sNode.Roles.WORKER)
-                                                    || it.roles.contains(K8sNode.Roles.NONE))
-                                            .toArray()
-
-
-//TODO        List<String> networkLink = benchmarkNetworkLink()
     }
 
     List<K8sNode> getNodes(){
@@ -302,6 +296,31 @@ class ClusterSystemBenchmark implements SystemBenchmark{
                     " Possible causes: node unavailable or memory/cpu unsifficient")
         }
         return new Tuple<String>(readSpeed, writeSpeed)
+    }
+
+    String benchmarkNetworkLink(){
+
+        String path = System.getProperty("user.dir")
+        log.info("Path: " + path)
+        //benchmark network
+        String command = "cd $path; git clone https://github.com/Pharb/kubernetes-iperf3.git; cd kubernetes-iperf3; ./iperf3.sh"
+        List<String> response = executeCommand(["bash", "-c", command])
+        //delete benchmark files
+        String command2 = "cd $path; rmdir kubernetes-iperf3"
+        executeCommand(["bash", "-c", command2])
+
+        int averagePerConnection = response.stream()
+                                .filter(it-> it.contains("sender") || it.contains("receiver"))
+                                .count()
+        Double networkBandwith = response.stream()
+                                .filter(it-> it.contains("sender") || it.contains("receiver"))
+                                .map(it -> it.find(".([0-9]?)[0-9].([0-9]?)[0-9] [MG]bits/sec"))
+                                .map(it -> it.split("bits/sec")[0])
+                                .map(it -> it.contains("M")? Double.parseDouble(it.substring(0, it.size()-2))/1000 : Double.parseDouble(it.substring(0, it.size()-2)))
+                                .reduce(0, (prev, it) -> prev+it)/averagePerConnection
+
+        //GByte per Second
+        (networkBandwith/8).round(3).toString()
     }
 
 
