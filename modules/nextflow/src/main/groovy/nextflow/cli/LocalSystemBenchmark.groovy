@@ -7,22 +7,35 @@ import java.nio.charset.Charset
 import java.nio.file.Files
 import java.nio.file.Path
 
-import nextflow.k8s.client.*
-
 
 @Slf4j
+/**
+ * Renders a simgrid XML file describing the local executing hardware.
+ * Can be used for simulations in WRENCH (https://wrench-project.org/)
+ * @author Frederic Risling
+ */
 class LocalSystemBenchmark  implements SystemBenchmark{
 
+    /**
+     * format of the file (!DOCTYPE)
+     */
     private final String SIMGRID_DTD = "\"http://simgrid.gforge.inria.fr/simgrid/simgrid.dtd\""
-    private final String VERSION = "4.1"
-    private boolean local
-    private K8sClient api
 
+    /**
+     * Simgrid version of the file
+     */
+    private final String VERSION = "4.1"
+
+    /**
+     * constructor for a LocalSystemBenchmark instance
+     */
     LocalSystemBenchmark(){
-        this.local = true
     }
 
-
+    /**
+     * implementation of renderHardwareDocument()
+     * should be used for local execution or single cloud instance execution
+     */
     void renderHardwareDocument(){
         log.info("Render Local Hardware Document")
         renderForLocalHardware()

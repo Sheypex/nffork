@@ -5,7 +5,6 @@ import nextflow.processor.TaskId
 import nextflow.trace.TraceRecord
 import groovy.util.logging.Slf4j
 import org.w3c.dom.Document
-
 import javax.xml.parsers.DocumentBuilder
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.stream.XMLOutputFactory
@@ -23,9 +22,8 @@ import java.nio.file.Path
 
 
 @Slf4j
-
 /**
- * Render the DAG in .dax Format representing the Workflow.
+ * Renders the DAG in .dax Format representing the Workflow.
  * Renders the minimal DAG in .dax Format for simulations in Wrench (https://wrench-project.org/)
  * @author Frederic Risling
  */

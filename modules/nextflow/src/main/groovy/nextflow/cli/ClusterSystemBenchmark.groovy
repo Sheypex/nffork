@@ -21,16 +21,24 @@ class ClusterSystemBenchmark implements SystemBenchmark{
     void renderHardwareDocument() {
 
         log.info("Benchmarking Cluster Hardware...")
+        //get all k8s nodes
         List<K8sNode> nodes = getNodes()
+        //print all nodes
         nodes.forEach(it->log.info("$it.name: $it.roles"))
         //benchmark each node
         for(node in nodes){
-            submitGFlopsPod(node)
             log.info("Benchmarking node: " + node.name + " ...")
+            //submit the GFlop benchmarking pod for node
+            submitGFlopsPod(node)
+            //parse the GFlops from the logs of the pod
             Double gFlops = parseGFlopsForNode(node)
+            //set GFlops for node
             node.setgFlops(gFlops)
+            //get cores of node
             node.cores = getCores(node)
+            //get disk benchmarking data for node
             node.disk = getDisk(node)
+            //finally print the node to the terminal
             log.info(node.toString())
         }
         //benchmark network-bandwith
@@ -301,13 +309,13 @@ class ClusterSystemBenchmark implements SystemBenchmark{
     String benchmarkNetworkLink(){
 
         String path = System.getProperty("user.dir")
-        log.info("Path: " + path)
         //benchmark network
         String command = "cd $path; git clone https://github.com/Pharb/kubernetes-iperf3.git; cd kubernetes-iperf3; ./iperf3.sh"
         List<String> response = executeCommand(["bash", "-c", command])
         //delete benchmark files
         String command2 = "cd $path; rmdir kubernetes-iperf3"
         executeCommand(["bash", "-c", command2])
+
 
         int averagePerConnection = response.stream()
                                 .filter(it-> it.contains("sender") || it.contains("receiver"))
