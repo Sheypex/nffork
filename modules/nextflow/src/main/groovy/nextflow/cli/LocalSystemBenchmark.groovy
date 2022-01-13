@@ -1,6 +1,7 @@
 package nextflow.cli
 
 import groovy.util.logging.Slf4j
+import nextflow.container.DockerBuilder
 import javax.xml.stream.XMLOutputFactory
 import javax.xml.stream.XMLStreamWriter
 import java.nio.charset.Charset
@@ -44,7 +45,8 @@ class LocalSystemBenchmark  implements SystemBenchmark{
     void renderForLocalHardware(){
         //Benchmark GFlops
         log.info("Benchmarking FLOPS ...")
-        String gFlops = executeArrayFireScript()
+        //String gFlops = executeArrayFireScript()
+        String gFlops = executeGFlopsBenchmark()
         log.info("$gFlops GFlops")
 
         //Get number of cores
@@ -74,28 +76,6 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         writeHostsXMLFileLocal(gFlops, cores, readSpeed, writeSpeed, space.toString())
     }
 
-    String executeArrayFireScript(){
-        ProcessBuilder processBuilder = new ProcessBuilder()
-        processBuilder.directory(new File(System.getProperty("user.home")))
-        //the command for executing the blas_cpu test from ArrayFire
-        Process process = processBuilder.command(
-            ["bash", "-c", "cp -r /opt/arrayfire/share/ArrayFire/examples /tmp/examples ; cd /tmp/examples ; mkdir build ; cd build ; cmake -DASSETS_DIR:PATH=/tmp .. ; make ; cd benchmarks ; ./blas_cpu"]
-        )
-                .start()
-
-        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))
-        ArrayList<String> lines = reader.readLines()
-
-        //filter the line which contains the peak GFLOPS
-        String result = removeOptionalFromString(lines.stream() \
-                                          .filter(line -> line.contains("peak")).findFirst().toString())
-
-        //parse the GFLOPS value from the string
-        String result_cleaned = result.split("peak ")[1].split(" ")[0]
-
-        return result_cleaned
-    }
-
     static List<String> executeCommand(List<String> command){
         ProcessBuilder processBuilder = new ProcessBuilder(command)
         processBuilder.directory(new File(System.getProperty("user.home")))
@@ -109,8 +89,27 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             //return the result
             return output
         }catch(IOException e){
+            log.info("FEEEEEHLER")
             e.printStackTrace()
         }
+    }
+
+    String executeGFlopsBenchmark(){
+        //docker run -it --rm h20180061/linpack
+        List<String> output = executeCommand(["/bin/bash", "-c" ,"docker run h20180061/linpack"])
+
+        int count = output.stream()
+                .filter(it -> it.contains("%"))
+                .count()
+
+        Double sum = output.stream()
+                .filter(it -> it.contains("%"))
+                .map(it->Double.parseDouble(it.split(" ").last()))
+                .reduce(0.0, (x,y)-> x+y)
+
+        Double avg = sum/count
+        (avg/10000).round(3).toString()
+
     }
 
     static String executeSysbenchCommand(List<String> command, String filterLine, String splitter, int splitIndex){
