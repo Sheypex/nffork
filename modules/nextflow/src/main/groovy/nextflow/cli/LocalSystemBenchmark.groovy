@@ -54,14 +54,14 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         String cores = coresRaw.first()
 
         //read speed fileio
-        String rawReadSpeedData = executeSysbenchCommand(["sysbench", "--file-test-mode=seqrd", "fileio", "run"], \
+        String rawReadSpeedData = executeSysbenchCommand(["/bin/bash", "-c", "sysbench --file-test-mode=seqrd fileio prepare;sysbench --file-test-mode=seqrd fileio run"], \
              "read, MiB/s", ":", 1)
         Double readSpeedDataMiB = rawReadSpeedData.toDouble()
         //convert to MBps
         String readSpeed = (readSpeedDataMiB * 1.048576).round(3).toString()
 
         //write speed fileio
-        String rawWriteSpeedData = executeSysbenchCommand(["sysbench", "--file-test-mode=seqwr", "fileio", "run"], \
+        String rawWriteSpeedData = executeSysbenchCommand(["/bin/bash", "-c", "sysbench --file-test-mode=seqwr fileio prepare;sysbench --file-test-mode=seqwr fileio run"], \
              "written, MiB/s", ":", 1)
         Double writeSpeedDataMiB = rawWriteSpeedData.toDouble()
         //convert to MBps
@@ -124,6 +124,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))
             //the output of the command as a String List
             ArrayList<String> output = reader.readLines()
+            log.info("Output: " + output.size())
             //get the number of total events from the output lines
             String totalEvents = output.stream()
                     .filter(line -> line.contains(filterLine))
