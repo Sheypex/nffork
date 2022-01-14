@@ -161,7 +161,16 @@ class DAXRenderer implements DagRenderer {
             String name = record.value.get("name")
             w.writeAttribute("name", name)
             double realtime = record.value.get("realtime") / 1000
-            w.writeAttribute("runtime", Double.toString(realtime))
+
+            //fix for 1-core jobs
+            if(record.value.get("cpus").toString()=="1"){
+                w.writeAttribute("runtime", Double.toString(realtime/2))
+                w.writeAttribute("runtime_raw", Double.toString(realtime))
+            }
+            else{
+                w.writeAttribute("runtime", Double.toString(realtime))
+                w.writeAttribute("runtime_raw", Double.toString(realtime))
+            }
             w.writeAttribute("numcores", record.value.get("cpus").toString())
 
             //input files

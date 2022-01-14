@@ -96,7 +96,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
     String executeGFlopsBenchmark(){
         //docker run -it --rm h20180061/linpack
-        List<String> output = executeCommand(["/bin/bash", "-c" ,"docker run h20180061/linpack"])
+        List<String> output = executeCommand(["/bin/bash", "-c" ,"docker run -e LINPACK_ARRAY_SIZE=150 h20180061/linpack"])
 
         int count = output.stream()
                 .filter(it -> it.contains("%"))
@@ -124,7 +124,6 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))
             //the output of the command as a String List
             ArrayList<String> output = reader.readLines()
-            log.info("Output: " + output.size())
             //get the number of total events from the output lines
             String totalEvents = output.stream()
                     .filter(line -> line.contains(filterLine))
