@@ -138,7 +138,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
     }
 
     void writeHostsXMLFileLocal(String gFlops, String cores, String readSpeed, String writeSpeed, String diskSize){
-        Path path = new File((System.getProperty("user.dir")+"/batch_host_local.xml")).toPath()
+        Path path = new File((System.getProperty("user.dir")+"/local_host.xml")).toPath()
         final Charset charset = Charset.defaultCharset()
         Writer bw = Files.newBufferedWriter(path, charset)
         final XMLOutputFactory xof = XMLOutputFactory.newFactory()
