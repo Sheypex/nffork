@@ -106,19 +106,18 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             int startIndex = Integer.parseInt(indexString.split("-").first())
             int endIndex = Integer.parseInt(indexString.split("-")[1])
             for(int i = startIndex; i<=endIndex; i++){
-                indexes.add(i.toString())
+                indexes.add(nodeName+i.toString())
             }
         }
             //only one compute node
         else{
             log.info("Single Compute Node")
             nodeName = nodeString
+            indexes.add(nodeString)
+
         }
         log.info("NodeList: $nodeName")
-        if(indexes.size()>0){
-            indexes.forEach(it -> log.info("Node: " + nodeName+it))
-        }
-
+        indexes.forEach(it -> log.info(it))
 
     }
 
