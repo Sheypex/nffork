@@ -149,6 +149,10 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
         log.info(nodes.first().toString())
 
+        for(node in indexes){
+            SlurmNode slurmNode = getSlurmNode(node)
+        }
+
 
     }
 
@@ -468,6 +472,22 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         //</route>
         w.writeCharacters("\n\t\t")
         w.writeEndElement()
+
+    }
+
+    SlurmNode getSlurmNode(String nodeName){
+        //GFlops docker run -e LINPACK_ARRAY_SIZE=150 h20180061/linpack
+        String gFlopCommand = "srun -l --nodelist=$nodeName docker run h20180061/linpack"
+        List<String> gFlopResponse = executeCommand(["bash", "-c", gFlopCommand])
+        gFlopResponse.forEach(it->log.info(it))
+
+        //cores
+
+        //diskReadSpeed
+
+        //diskWriteSpeed
+
+        //diskSize
 
     }
 
