@@ -46,10 +46,14 @@ class LocalSystemBenchmark  implements SystemBenchmark{
      * should be used for local execution or single cloud instance execution
      */
     void renderHardwareDocument(){
-        log.info("Render Local Hardware Document")
-        log.info(" It is a local execution: " + local.toString())
-        renderForLocalHardware()
-        //check whether it is a slurm run
+        if(local){
+            log.info("Render Local Hardware Document")
+            renderForLocalHardware()
+        }
+        else {
+            log.info("Render Cluster Hardware Document")
+            renderForClusterHardware()
+        }
     }
 
     void renderForLocalHardware(){
@@ -84,6 +88,38 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
         //write the batch_host_local.xml file with the benchmark results from above
         writeHostsXMLFileLocal(gFlops, cores, readSpeed, writeSpeed, space.toString())
+    }
+
+    void renderForClusterHardware(){
+        log.info("Benchmark Master Node")
+        List<String> listOfNodes = executeCommand(["sinfo"])
+        String line = listOfNodes.stream().filter(it -> it.contains("debug*")).toArray().first()
+        String nodeString = line.split(" ").last()
+        String nodeName = ""
+        List<String> indexes = new ArrayList<>()
+        if(nodeString.contains("[")){
+            log.info("Muliple Compute Nodes")
+            nodeString.replace("[", ";")
+            nodeString.replace("]", ";")
+            nodeName = nodeString.split(";").first()
+            String indexString = nodeString.split(";")[1]
+            int startIndex = Integer.parseInt(indexString.split("-").first())
+            int endIndex = Integer.parseInt(indexString.split("-")[1])
+            for(int i = startIndex; i<=endIndex; i++){
+                indexes.add(i.toString())
+            }
+        }
+            //only one compute node
+        else{
+            log.info("Single Compute Node")
+            nodeName = nodeString
+        }
+        log.info("NodeList: $nodeName")
+        if(indexes.size()>0){
+            indexes.forEach(it -> log.info("Node: " + nodeName+it))
+        }
+
+
     }
 
     static List<String> executeCommand(List<String> command){
