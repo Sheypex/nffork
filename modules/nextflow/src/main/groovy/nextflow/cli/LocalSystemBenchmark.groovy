@@ -17,6 +17,8 @@ import java.nio.file.Path
  */
 class LocalSystemBenchmark  implements SystemBenchmark{
 
+    private boolean local
+
     /**
      * format of the file (!DOCTYPE)
      */
@@ -31,6 +33,12 @@ class LocalSystemBenchmark  implements SystemBenchmark{
      * constructor for a LocalSystemBenchmark instance
      */
     LocalSystemBenchmark(){
+        if(new File((System.getProperty("user.dir")+"/nextflow.config")).isFile()){
+            this.local = !checkIfSlurmConfigured()
+        }
+        else{
+            this.local = true
+        }
     }
 
     /**
@@ -39,7 +47,9 @@ class LocalSystemBenchmark  implements SystemBenchmark{
      */
     void renderHardwareDocument(){
         log.info("Render Local Hardware Document")
+        log.info(" It is a local execution: " + local.toString())
         renderForLocalHardware()
+        //check whether it is a slurm run
     }
 
     void renderForLocalHardware(){
@@ -392,6 +402,20 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         w.writeCharacters("\n\t\t")
         w.writeEndElement()
 
+    }
+
+    boolean checkIfSlurmConfigured(){
+        File file = new File(System.getProperty("user.dir")+"/nextflow.config")
+        Scanner scanner = new Scanner(file)
+        int lineNum = 0
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine();
+            lineNum++
+            if(line.contains("slurm")) {
+                return true
+            }
+        }
+        false
     }
 
     static String removeOptionalFromString(String optional){
