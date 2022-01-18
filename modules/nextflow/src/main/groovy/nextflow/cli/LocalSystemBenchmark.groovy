@@ -479,9 +479,22 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         //GFlops docker run -e LINPACK_ARRAY_SIZE=150 h20180061/linpack
         String gFlopCommand = "srun -l --nodelist=$nodeName docker run h20180061/linpack"
         List<String> gFlopResponse = executeCommand(["bash", "-c", gFlopCommand])
-        gFlopResponse.forEach(it->log.info(it))
+        int count = gFlopResponse.stream()
+                .filter(it -> it.contains("%"))
+                .count()
 
-        //cores
+        Double sum = gFlopResponse.stream()
+                .filter(it -> it.contains("%"))
+                .map(it->Double.parseDouble(it.split(" ").last()))
+                .reduce(0.0, (x,y)-> x+y)
+
+        Double avg = sum/count
+        String gFlops = (avg/10000).round(3).toString()
+
+        //cores: srun -l --nodelist=test-compute-0-0 getconf _NPROCESSORS_ONLN
+        String coreCommand = "srun --nodelist=$nodeName getconf _NPROCESSORS_ONLN"
+        String cores = executeCommand(["bash", "-c", coreCommand]).first()
+
 
         //diskReadSpeed
 
