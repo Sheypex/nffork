@@ -496,6 +496,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         String cores = executeCommand(["bash", "-c", coreCommand]).first()
 
 
+        return null
         //diskReadSpeed
 
         //diskWriteSpeed
