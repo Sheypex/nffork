@@ -91,7 +91,6 @@ class LocalSystemBenchmark  implements SystemBenchmark{
     }
 
     void renderForClusterHardware(){
-        log.info("Benchmark Master Node")
         List<String> listOfNodes = executeCommand(["sinfo"])
         String line = listOfNodes.stream().filter(it -> it.contains("debug*")).toArray().first()
         String nodeString = line.split(" ").last()
@@ -116,8 +115,40 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             indexes.add(nodeString)
 
         }
-        log.info("NodeList: $nodeName")
-        indexes.forEach(it -> log.info(it))
+        //log.info("Compute Node List: $nodeName")
+        //indexes.forEach(it -> log.info(it))
+
+        log.info("Benchmarking Master Node...")
+
+        String local_gFlops = executeGFlopsBenchmark()//Get number of cores
+        ArrayList<String> coresRaw = executeCommand(["getconf","_NPROCESSORS_ONLN"])
+        String local_cores = coresRaw.first()
+
+        //read speed fileio
+        String rawReadSpeedData = executeSysbenchCommand(["/bin/bash", "-c", "sysbench --file-test-mode=seqrd fileio prepare;sysbench --file-test-mode=seqrd fileio run"], \
+             "read, MiB/s", ":", 1)
+        Double readSpeedDataMiB = rawReadSpeedData.toDouble()
+        //convert to MBps
+        String local_readSpeed = (readSpeedDataMiB * 1.048576).round(3).toString()
+
+        //write speed fileio
+        String rawWriteSpeedData = executeSysbenchCommand(["/bin/bash", "-c", "sysbench --file-test-mode=seqwr fileio prepare;sysbench --file-test-mode=seqwr fileio run"], \
+             "written, MiB/s", ":", 1)
+        Double writeSpeedDataMiB = rawWriteSpeedData.toDouble()
+        //convert to MBps
+        String local_writeSpeed = (writeSpeedDataMiB * 1.048576).round(3).toString()
+
+        //disk size
+        File file = new File("/")
+        //Convert Byte to Gibibyte (GiB) by dividing by 1.074e+9
+        int local_space = file.totalSpace/1.074e+9
+
+        List<SlurmNode> nodes = new ArrayList<>()
+        nodes.add(new SlurmNode("Master", SlurmNode.Role.MASTER, Double.parseDouble(local_gFlops), \
+                    Integer.parseInt(local_cores), new Disk(local_readSpeed, local_writeSpeed, local_space.toString())))
+
+        log.info(nodes.first().toString())
+
 
     }
 
@@ -138,6 +169,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             e.printStackTrace()
         }
     }
+
 
     String executeGFlopsBenchmark(){
         //docker run -it --rm h20180061/linpack
@@ -457,6 +489,57 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         String split1 = optional.split("Optional")[1]
         return split1.substring(1, split1.length()-1)
     }
+
+
+    class SlurmNode{
+        String name
+        enum Role{
+            MASTER,
+            WORKER
+        }
+        Role role
+        Double gFlops
+        Integer cores
+        Disk disk
+
+    SlurmNode(String name, Role role, Double gFlops, Integer cores, Disk disk){
+        this.name = name
+        this.role = role
+        this.gFlops = gFlops
+        this.cores = cores
+        this.disk = disk
+    }
+
+    boolean setDisk(Double readSpeed, Double writeSpeed, Double size){
+        if(this.disk == null){
+            this.disk = new Disk(readSpeed, writeSpeed, size)
+            return true
+        }
+        return false
+    }
+
+    String toString(){
+        return "name: $name, role: $role, gFlops: $gFlops, cores: $cores, disk: $disk"
+    }
+
+}
+
+class Disk{
+    String readSpeed
+    String writeSpeed
+    String size
+
+    Disk(String readSpeed, String writeSpeed, String size){
+        this.readSpeed = readSpeed
+        this.writeSpeed = writeSpeed
+        this.size = size
+    }
+
+    String toString(){
+        "Disk(readSpeed: $readSpeed, writeSpeed: $writeSpeed, size: $size)"
+    }
+
+}
 
 }
 
