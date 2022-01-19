@@ -94,26 +94,17 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         List<String> listOfNodes = executeCommand(["sinfo"])
         String line = listOfNodes.stream().filter(it -> it.contains("debug*")).toArray().first()
         String nodeString = line.split(" ").last()
-        String nodeName = ""
+        //String nodeName = ""
         List<String> indexes = new ArrayList<>()
         if(nodeString.contains("[")){
             log.info("Muliple Compute Nodes")
             nodeString = nodeString.replace("[", ";").replace("]", ";")
-            //test2-compute-0-;0-1;
-            log.info("nodeString: $nodeString")
-            nodeName = nodeString.split(";").first()
-            //test2-compute-0-
-            log.info("nodeName: $nodeName")
+            String nodeName = nodeString.split(";").first()
             String indexString = nodeString.split(";")[1]
-            //0-1
-            log.info("indexString: $indexString")
 
             int startIndex = Integer.parseInt(indexString.split("-").first())
-            log.info("startIndex: "+ startIndex.toString())
 
             int endIndex = Integer.parseInt(indexString.split("-")[1])
-            log.info("endIndex: "+ endIndex.toString())
-            log.info("for -loop")
             for(int i = startIndex; i<=endIndex; i++){
                 log.info(" i : "+ i.toString())
                 indexes.add(nodeName+i.toString())
@@ -122,7 +113,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             //only one compute node
         else{
             log.info("Single Compute Node")
-            nodeName = nodeString
+            //nodeName = nodeString
             indexes.add(nodeString)
 
         }
@@ -487,6 +478,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
     }
 
     SlurmNode getSlurmNode(String nodeName){
+        log.info("Benchmarking Node: $nodeName ...")
         //GFlops docker run -e LINPACK_ARRAY_SIZE=150 h20180061/linpack
         String gFlopCommand = "srun -l --nodelist=$nodeName docker run h20180061/linpack"
         List<String> gFlopResponse = executeCommand(["bash", "-c", gFlopCommand])
@@ -501,11 +493,12 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
         Double avg = sum/count
         String gFlops = (avg/10000).round(3).toString()
+        log.info("GFLOPS: $gFlops")
 
         //cores: srun -l --nodelist=test-compute-0-0 getconf _NPROCESSORS_ONLN
         String coreCommand = "srun --nodelist=$nodeName getconf _NPROCESSORS_ONLN"
         String cores = executeCommand(["bash", "-c", coreCommand]).first()
-
+        log.info("CORES: $cores")
 
         return null
         //diskReadSpeed
