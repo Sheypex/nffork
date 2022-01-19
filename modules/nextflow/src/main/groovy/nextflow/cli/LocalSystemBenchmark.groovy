@@ -103,19 +103,15 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             String indexString = nodeString.split(";")[1]
 
             int startIndex = Integer.parseInt(indexString.split("-").first())
-
             int endIndex = Integer.parseInt(indexString.split("-")[1])
             for(int i = startIndex; i<=endIndex; i++){
-                log.info(" i : "+ i.toString())
                 indexes.add(nodeName+i.toString())
             }
         }
             //only one compute node
         else{
             log.info("Single Compute Node")
-            //nodeName = nodeString
             indexes.add(nodeString)
-
         }
         //log.info("Compute Node List: $nodeName")
         //indexes.forEach(it -> log.info(it))
@@ -500,12 +496,22 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         String cores = executeCommand(["bash", "-c", coreCommand]).first()
         log.info("CORES: $cores")
 
-        return null
+
+        //DISK
+        String diskCommand = "srun --nodelist=$nodeName docker run severalnines/sysbench /bin/bash -c ; sysbench --file-test-mode=seqrd fileio prepare; sysbench --file-test-mode=seqrd fil\n" +
+                "eio run; sysbench --file-test-mode=seqwr fileio run"
+        List<String> diskResponse = executeCommand(["bash", "-c", diskCommand])
+        log.info(" ")
+        diskResponse.forEach(it-> log.info(it))
+
         //diskReadSpeed
+
 
         //diskWriteSpeed
 
         //diskSize
+
+        return null
 
     }
 
