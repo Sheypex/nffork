@@ -154,6 +154,24 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             SlurmNode slurmNode = getSlurmNode(node)
             nodes.add(slurmNode)
         }
+        //benchmark network bandwidth
+        List<Double> bandwidths = new ArrayList<>()
+        for(node in nodes.subList(1, nodes.size())){
+            String nodeName = node.name
+            //startServer
+            log.info("start server ...")
+            String serverScript = new File((System.getProperty("user.dir")+"/modules/nextflow/src/main/resources/slurm/iperfServer.sh")).toString()
+            String serverCommand = "sbatch -w $nodeName $serverScript"
+            executeCommand(["bash", "-c", serverCommand])
+            //startClient
+            log.info("start client ...")
+            String ip = node.ipAddress
+            String clientCommand = "iperf -c $ip"
+            List<String> response = executeCommand(["bash", "-c", clientCommand])
+            response.forEach(it -> log.info(it))
+
+        }
+
         nodes.forEach(it->log.info(it.toString()))
 
 
