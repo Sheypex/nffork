@@ -145,13 +145,12 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         nodes.add(new SlurmNode("Master", SlurmNode.Role.MASTER, Double.parseDouble(local_gFlops), \
                     Integer.parseInt(local_cores), new Disk(local_readSpeed, local_writeSpeed, local_space.toString())))
 
-        log.info(nodes.first().toString())
-
+        //add worker nodes
         for(node in indexes){
             SlurmNode slurmNode = getSlurmNode(node)
+            nodes.add(slurmNode)
         }
-
-
+        nodes.forEach(it->log.info(it.toString()))
     }
 
     static List<String> executeCommand(List<String> command){
@@ -489,12 +488,12 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
         Double avg = sum/count
         String gFlops = (avg/10000).round(3).toString()
-        log.info("GFLOPS: $gFlops")
+        //log.info("GFLOPS: $gFlops")
 
         //cores: srun -l --nodelist=test-compute-0-0 getconf _NPROCESSORS_ONLN
         String coreCommand = "srun --nodelist=$nodeName getconf _NPROCESSORS_ONLN"
         String cores = executeCommand(["bash", "-c", coreCommand]).first()
-        log.info("CORES: $cores")
+        //log.info("CORES: $cores")
 
 
         //DISK
@@ -509,7 +508,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
                     .map(it -> Double.parseDouble(it))
                     .filter(it -> it > 0)
                     .map(it -> (it*1.048576).toString()).toArray().first()
-        log.info("readSpeed; $readSpeed")
+        //log.info("readSpeed; $readSpeed")
 
         //diskWriteSpeed
         String writeSpeed = diskResponse.stream()
@@ -519,7 +518,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
                 .filter(it -> it > 0)
                 .map(it -> (it*1.048576).toString()).toArray().first()
 
-        log.info("writeSpeed: $writeSpeed")
+        //log.info("writeSpeed: $writeSpeed")
 
         //diskSize
         String diskSizeCommand = "srun --nodelist=$nodeName df"
@@ -530,11 +529,10 @@ class LocalSystemBenchmark  implements SystemBenchmark{
                                     .filter(it -> it.isNumber())
                                     .findFirst()
         String sizeValue = ((Double.parseDouble(removeOptionalFromString(sizeValuesOptional))/1.024)/1000000).toString()
-        log.info(sizeValue)
+        //log.info(sizeValue)
 
-
-
-        return null
+        new SlurmNode(nodeName, SlurmNode.Role.WORKER, Double.parseDouble(gFlops), Integer.parseInt(cores), \
+                                                        new Disk(readSpeed, writeSpeed, sizeValue))
 
     }
 
