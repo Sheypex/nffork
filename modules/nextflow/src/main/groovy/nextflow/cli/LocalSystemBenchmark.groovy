@@ -141,9 +141,13 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         //Convert Byte to Gibibyte (GiB) by dividing by 1.074e+9
         int local_space = file.totalSpace/1.074e+9
 
+        String ipCommand = "hostname -I"
+        String ipResponse = executeCommand(["bash", "-c", ipCommand]).first()
+        String ipAddress = ipResponse.split(" ").first()
+
         List<SlurmNode> nodes = new ArrayList<>()
         nodes.add(new SlurmNode("Master", SlurmNode.Role.MASTER, Double.parseDouble(local_gFlops), \
-                    Integer.parseInt(local_cores), new Disk(local_readSpeed, local_writeSpeed, local_space.toString())))
+                    Integer.parseInt(local_cores), new Disk(local_readSpeed, local_writeSpeed, local_space.toString()), ipAddress))
 
         //add worker nodes
         for(node in indexes){
@@ -151,6 +155,8 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             nodes.add(slurmNode)
         }
         nodes.forEach(it->log.info(it.toString()))
+
+
     }
 
     static List<String> executeCommand(List<String> command){
@@ -531,8 +537,14 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         String sizeValue = ((Double.parseDouble(removeOptionalFromString(sizeValuesOptional))/1.024)/1000000).toString()
         //log.info(sizeValue)
 
+        String ipCommand = "srun --nodelist=$nodeName hostname -I"
+        String ipResponse = executeCommand(["bash", "-c", ipCommand]).first()
+        String ipAddress = ipResponse.split(" ").first()
+
+
+
         new SlurmNode(nodeName, SlurmNode.Role.WORKER, Double.parseDouble(gFlops), Integer.parseInt(cores), \
-                                                        new Disk(readSpeed, writeSpeed, sizeValue))
+                                                        new Disk(readSpeed, writeSpeed, sizeValue), ipAddress)
 
     }
 
@@ -566,13 +578,15 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         Double gFlops
         Integer cores
         Disk disk
+        String ipAddress
 
-    SlurmNode(String name, Role role, Double gFlops, Integer cores, Disk disk){
+    SlurmNode(String name, Role role, Double gFlops, Integer cores, Disk disk, String ipAddress){
         this.name = name
         this.role = role
         this.gFlops = gFlops
         this.cores = cores
         this.disk = disk
+        this.ipAddress = ipAddress
     }
 
     boolean setDisk(Double readSpeed, Double writeSpeed, Double size){
@@ -584,7 +598,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
     }
 
     String toString(){
-        return "name: $name, role: $role, gFlops: $gFlops, cores: $cores, disk: $disk"
+        return "name: $name, role: $role, gFlops: $gFlops, cores: $cores, disk: $disk, ipAddress: $ipAddress"
     }
 
 }
