@@ -500,15 +500,39 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         //DISK
         String diskCommand = "srun --nodelist=$nodeName docker run severalnines/sysbench /bin/bash -c ; sysbench --file-test-mode=seqrd fileio prepare; sysbench --file-test-mode=seqrd fileio run; sysbench --file-test-mode=seqwr fileio run"
         List<String> diskResponse = executeCommand(["bash", "-c", diskCommand])
-        log.info(" ")
-        diskResponse.forEach(it-> log.info(it))
+        //diskResponse.forEach(it-> log.info(it))
 
         //diskReadSpeed
-
+        String readSpeed = diskResponse.stream()
+                    .filter(it -> it.contains("read, MiB/s:"))
+                    .map(it -> it.split(" ").last())
+                    .map(it -> Double.parseDouble(it))
+                    .filter(it -> it > 0)
+                    .map(it -> (it*1.048576).toString()).toArray().first()
+        log.info("readSpeed; $readSpeed")
 
         //diskWriteSpeed
+        String writeSpeed = diskResponse.stream()
+                .filter(it -> it.contains("written, MiB/s:"))
+                .map(it -> it.split(" ").last())
+                .map(it -> Double.parseDouble(it))
+                .filter(it -> it > 0)
+                .map(it -> (it*1.048576).toString()).toArray().first()
+
+        log.info("writeSpeed: $writeSpeed")
 
         //diskSize
+        String diskSizeCommand = "srun --nodelist=$nodeName df"
+        List<String> diskSizeResponse = executeCommand(["bash", "-c", diskSizeCommand])
+        String sizeLine = diskSizeResponse.stream()
+                        .filter(it -> it.endsWith("/")).toArray().first()
+        String sizeValuesOptional = sizeLine.split(" ").toList().stream()
+                                    .filter(it -> it.isNumber())
+                                    .findFirst()
+        String sizeValue = ((Double.parseDouble(removeOptionalFromString(sizeValuesOptional))/1.024)/1000000).toString()
+        log.info(sizeValue)
+
+
 
         return null
 
