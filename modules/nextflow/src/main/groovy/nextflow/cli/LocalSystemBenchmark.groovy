@@ -498,8 +498,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
 
         //DISK
-        String diskCommand = "srun --nodelist=$nodeName docker run severalnines/sysbench /bin/bash -c ; sysbench --file-test-mode=seqrd fileio prepare; sysbench --file-test-mode=seqrd fil\n" +
-                "eio run; sysbench --file-test-mode=seqwr fileio run"
+        String diskCommand = "srun --nodelist=$nodeName docker run severalnines/sysbench /bin/bash -c ; sysbench --file-test-mode=seqrd fileio prepare; sysbench --file-test-mode=seqrd fileio run; sysbench --file-test-mode=seqwr fileio run"
         List<String> diskResponse = executeCommand(["bash", "-c", diskCommand])
         log.info(" ")
         diskResponse.forEach(it-> log.info(it))
