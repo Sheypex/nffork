@@ -100,11 +100,23 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             log.info("Muliple Compute Nodes")
             nodeString.replace("[", ";")
             nodeString.replace("]", ";")
+            //test2-compute-0-;0-1;
+            log.info("nodeString: $nodeString")
             nodeName = nodeString.split(";").first()
+            //test2-compute-0-
+            log.info("nodeName: $nodeName")
             String indexString = nodeString.split(";")[1]
+            //0-1
+            log.info("indexString: $indexString")
+
             int startIndex = Integer.parseInt(indexString.split("-").first())
+            log.info("startIndex: "+ startIndex.toString())
+
             int endIndex = Integer.parseInt(indexString.split("-")[1])
+            log.info("endIndex: "+ endIndex.toString())
+            log.info("for -loop")
             for(int i = startIndex; i<=endIndex; i++){
+                log.info(" i : "+ i.toString())
                 indexes.add(nodeName+i.toString())
             }
         }
