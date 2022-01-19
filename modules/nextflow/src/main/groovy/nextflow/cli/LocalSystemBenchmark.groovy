@@ -98,8 +98,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         List<String> indexes = new ArrayList<>()
         if(nodeString.contains("[")){
             log.info("Muliple Compute Nodes")
-            nodeString.replace("[", ";")
-            nodeString.replace("]", ";")
+            nodeString = nodeString.replace("[", ";").replace("]", ";")
             //test2-compute-0-;0-1;
             log.info("nodeString: $nodeString")
             nodeName = nodeString.split(";").first()
