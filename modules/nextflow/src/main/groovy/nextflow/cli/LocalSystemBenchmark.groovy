@@ -113,8 +113,6 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             log.info("Single Compute Node")
             indexes.add(nodeString)
         }
-        //log.info("Compute Node List: $nodeName")
-        //indexes.forEach(it -> log.info(it))
 
         log.info("Benchmarking Master Node...")
 
@@ -570,6 +568,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
     String benchmarkNetworkBandwidth(List<SlurmNode> nodes) {
         log.info("Benchmarking Network Link ...")
         List<Double> bandwidths = new ArrayList<>()
+        String bandwidth
         for (node in nodes) {
             if (node.role == SlurmNode.Role.MASTER) continue
             String nodeName = node.name
@@ -584,6 +583,11 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             String ip = node.ipAddress
             String clientCommand = "iperf -c $ip"
             List<String> response = executeCommand(["bash", "-c", clientCommand])
+
+            Long count = response.stream()
+                    .filter(it -> it.contains("sec"))
+                    .count()
+            log.info("Array has : " + count.toString() + " entries")
 
             //parse the bandwidth value
             String rawBandwidth = response.stream()
@@ -601,9 +605,10 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             }
 
             Double bandwidthSum = bandwidths.stream().reduce(0, (a, b) -> a + b)
-            String bandwidth = (bandwidthSum / bandwidths.size()).toString()
-            bandwidth
+            bandwidth = (bandwidthSum / bandwidths.size()).toString()
+
         }
+        bandwidth
     }
 
     static String removeOptionalFromString(String optional){
