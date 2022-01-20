@@ -577,16 +577,18 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             if (node.role == SlurmNode.Role.MASTER) continue
             String nodeName = node.name
 
-            //startServer
+            log.info("startServer")
             String serverScript = new File((System.getProperty("user.dir") + "/modules/nextflow/src/main/resources/slurm/iperfServer.sh")).toString()
             String serverCommand = "sbatch -w $nodeName $serverScript"
             executeCommand(["bash", "-c", serverCommand])
 
             //startClient
-            //log.info("start client ...")
+            log.info("start client ...")
             String ip = node.ipAddress
             String clientCommand = "iperf -c $ip"
             List<String> response = executeCommand(["bash", "-c", clientCommand])
+
+            Thread.sleep(5000)
 
             Long count = response.stream()
                     .filter(it -> it.contains("sec"))
@@ -607,11 +609,9 @@ class LocalSystemBenchmark  implements SystemBenchmark{
                 Double mb = (Double.parseDouble(rawBandwidth.replace("M", ""))) / 8
                 bandwidths.add(mb)
             }
-
-            Double bandwidthSum = bandwidths.stream().reduce(0, (a, b) -> a + b)
-            bandwidth = (bandwidthSum / bandwidths.size()).toString()
-
         }
+        Double bandwidthSum = bandwidths.stream().reduce(0, (a, b) -> a + b)
+        bandwidth = (bandwidthSum / bandwidths.size()).toString()
         bandwidth
     }
 
