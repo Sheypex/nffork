@@ -697,7 +697,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         for(int i = 1; i <= nodes.size(); i++){
             //<host id="HostXY" speed="xyzGf" core="xy">
             String hostName = "Host" + i.toString()
-            w.writeCharacters("\t\t")
+            w.writeCharacters("\n\t\t")
             w.writeStartElement("host")
             w.writeAttribute("id", hostName)
             w.writeAttribute("speed", nodes[i-1].gFlops.toString() + "Gf")
@@ -728,6 +728,11 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             //</disk>
             w.writeCharacters("\n\t\t\t")
             w.writeEndElement()
+
+            //host
+            w.writeCharacters("\n\t\t")
+            w.writeEndElement()
+
         }
 
     }
