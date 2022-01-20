@@ -157,54 +157,10 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         //benchmark network bandwidth
         log.info("Benchmarking Network Link ...")
         List<Double> bandwidths = new ArrayList<>()
-        for(node in nodes){
-            if(node.role == SlurmNode.Role.MASTER) continue
-            String nodeName = node.name
-            log.info("Benchmarking Network Link for: $nodeName")
-            //startServer
-            log.info("start server ...")
-            String serverScript = new File((System.getProperty("user.dir")+"/modules/nextflow/src/main/resources/slurm/iperfServer.sh")).toString()
-            String serverCommand = "sbatch -w $nodeName $serverScript"
-            executeCommand(["bash", "-c", serverCommand])
-            //startClient
-            log.info("start client ...")
-            String ip = node.ipAddress
-            String clientCommand = "iperf -c $ip"
-            List<String> response = executeCommand(["bash", "-c", clientCommand])
-            //parse the bandwidth value
-            response.forEach(it -> log.info(it))
 
-            Long rawBandwidthCount = response.stream()
-                    .filter(it -> it.contains("sec"))
-                    .count()
-            log.info("Size of List: "+ rawBandwidthCount.toString())
-
-
-            String rawBandwidth = response.stream()
-                    .filter(it -> it.contains("sec"))
-                    .map(it -> it.split("Bytes")[1])
-                    .map(it -> it.replace(" ", ""))
-                    .map(it -> it.replace("bits/sec", "")).toArray().first()
-
-            if(rawBandwidth.contains("G")){
-                Double mb = (Double.parseDouble(rawBandwidth.replace("G", "")))*128
-                log.info("Bandwith: "+ mb.toString()+"MB/s")
-                bandwidths.add(mb)
-            }
-            else{
-                Double mb = (Double.parseDouble(rawBandwidth.replace("M", "")))/8
-                log.info("Bandwith: "+ mb.toString()+"MB/s")
-                bandwidths.add(mb)
-            }
-
-            Double bandwidthSum = bandwidths.stream().reduce(0, (a,b) -> a+b)
-            String bandwidth = (bandwidthSum/bandwidths.size()).toString()
-            log.info("networw Bandwidth : $bandwidth")
-
-        }
-
+        String bw = benchmarkNetworkBandwidth(nodes)
         nodes.forEach(it->log.info(it.toString()))
-
+        log.info("Network-Bandwidth: $bw MBps")
 
     }
 
@@ -609,6 +565,45 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             }
         }
         false
+    }
+
+    String benchmarkNetworkBandwidth(List<SlurmNode> nodes) {
+        log.info("Benchmarking Network Link ...")
+        List<Double> bandwidths = new ArrayList<>()
+        for (node in nodes) {
+            if (node.role == SlurmNode.Role.MASTER) continue
+            String nodeName = node.name
+
+            //startServer
+            String serverScript = new File((System.getProperty("user.dir") + "/modules/nextflow/src/main/resources/slurm/iperfServer.sh")).toString()
+            String serverCommand = "sbatch -w $nodeName $serverScript"
+            executeCommand(["bash", "-c", serverCommand])
+
+            //startClient
+            //log.info("start client ...")
+            String ip = node.ipAddress
+            String clientCommand = "iperf -c $ip"
+            List<String> response = executeCommand(["bash", "-c", clientCommand])
+
+            //parse the bandwidth value
+            String rawBandwidth = response.stream()
+                    .filter(it -> it.contains("sec"))
+                    .map(it -> it.split("Bytes")[1])
+                    .map(it -> it.replace(" ", ""))
+                    .map(it -> it.replace("bits/sec", "")).toArray().first()
+
+            if (rawBandwidth.contains("G")) {
+                Double mb = (Double.parseDouble(rawBandwidth.replace("G", ""))) * 128
+                bandwidths.add(mb)
+            } else {
+                Double mb = (Double.parseDouble(rawBandwidth.replace("M", ""))) / 8
+                bandwidths.add(mb)
+            }
+
+            Double bandwidthSum = bandwidths.stream().reduce(0, (a, b) -> a + b)
+            String bandwidth = (bandwidthSum / bandwidths.size()).toString()
+            bandwidth
+        }
     }
 
     static String removeOptionalFromString(String optional){
