@@ -588,19 +588,25 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             List<String> response = executeCommand(["bash", "-c", clientCommand])
 
             //added so that there is enough time to finish previous execution
-            Thread.sleep(5000)
+            Thread.sleep(10000)
 
+            String rawBandwidth = ""
             //parse the bandwidth value
-            String rawBandwidth = response.stream()
-                    .filter(it -> it.contains("sec"))
-                    .map(it -> it.split("Bytes")[1])
-                    .map(it -> it.replace(" ", ""))
-                    .map(it -> it.replace("bits/sec", "")).toArray().first()
+            try{
+                rawBandwidth = response.stream()
+                        .filter(it -> it.contains("sec"))
+                        .map(it -> it.split("Bytes")[1])
+                        .map(it -> it.replace(" ", ""))
+                        .map(it -> it.replace("bits/sec", "")).toArray().first()
+            }
+            catch (Exception e){
+                log.info("Could not benchmark network link for: $nodeName ")
+            }
 
             if (rawBandwidth.contains("G")) {
                 Double mb = (Double.parseDouble(rawBandwidth.replace("G", ""))) * 128
                 bandwidths.add(mb)
-            } else {
+            } else if (rawBandwidth.contains("M")) {
                 Double mb = (Double.parseDouble(rawBandwidth.replace("M", ""))) / 8
                 bandwidths.add(mb)
             }
