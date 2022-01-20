@@ -776,22 +776,24 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         w.writeComment(" The network link connects all hosts together ")
 
         List<int[]> tuples = generate(nodes.size(), 2)
-        tuples.forEach(it -> log.info(it.toString()))
 
-        //<route src="Host1" dst="Host2">
-        w.writeCharacters("\n\t\t")
-        w.writeStartElement("route")
-        w.writeAttribute("src", "Host1")
-        w.writeAttribute("dst", "Host2")
-        //  <link_ctn id="network_link"/>
-        w.writeCharacters("\n\t\t\t")
-        w.writeStartElement("link_ctn")
-        w.writeAttribute("id", "network_link")
-        w.writeEndElement()
-        //</route>
-        w.writeCharacters("\n\t\t")
-        w.writeEndElement()
-
+        for(tup in tuples){
+            //<route src="Host1" dst="Host2">
+            String from = (tup[0]+1).toString()
+            String to = (tup[1]+1).toString()
+            w.writeCharacters("\n\t\t")
+            w.writeStartElement("route")
+            w.writeAttribute("src", "Host$from")
+            w.writeAttribute("dst", "Host$to")
+            //  <link_ctn id="network_link"/>
+            w.writeCharacters("\n\t\t\t")
+            w.writeStartElement("link_ctn")
+            w.writeAttribute("id", "network_link")
+            w.writeEndElement()
+            //</route>
+            w.writeCharacters("\n\t\t")
+            w.writeEndElement()
+        }
 
     }
 
