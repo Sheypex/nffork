@@ -801,8 +801,8 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         //<!-- Each loopback link connects each host to itself -->
         w.writeComment(" Each loopback link connects each host to itself ")
 
-        for(int i = 0; i <= nodes.size(); i++){
-            String ind = (i+1).toString()
+        for(int i = 1; i <= nodes.size(); i++){
+            String ind = i.toString()
             //<route src="Host1" dst="Host1">
             w.writeCharacters("\n\t\t")
             w.writeStartElement("route")
