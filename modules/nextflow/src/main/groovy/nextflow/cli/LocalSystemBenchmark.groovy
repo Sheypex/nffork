@@ -171,7 +171,28 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             String ip = node.ipAddress
             String clientCommand = "iperf -c $ip"
             List<String> response = executeCommand(["bash", "-c", clientCommand])
-            response.forEach(it -> log.info(it))
+            //parse the bandwidth value
+            String rawBandwidth = response.stream()
+                    .filter(it -> it.contains("bits/sec"))
+                    .map(it -> it.split("Bytes")[1])
+                    .map(it -> it.replace(" ", ""))
+                    .map(it -> it.replace("bits/sec", "")).toArray().first()
+
+            if(rawBandwidth.contains("G")){
+                Double mb = (Double.parseDouble(rawBandwidth.replace("G", "")))*128
+                log.info("Bandwith: "+ mb.toString()+"MB/s")
+                bandwidths.add(mb)
+            }
+            else{
+                Double mb = (Double.parseDouble(rawBandwidth.replace("M", "")))/8
+                log.info("Bandwith: "+ mb.toString()+"MB/s")
+                bandwidths.add(mb)
+            }
+
+            Double bandwidthSum = bandwidths.stream().reduce(0, (a,b) -> a+b)
+            String bandwidth = (bandwidthSum/bandwidths.size()).toString()
+            log.info("networw Bandwidth : $bandwidth")
+
         }
 
         nodes.forEach(it->log.info(it.toString()))
