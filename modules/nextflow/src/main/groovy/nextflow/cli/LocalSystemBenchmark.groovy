@@ -96,16 +96,15 @@ class LocalSystemBenchmark  implements SystemBenchmark{
                                 .filter(it -> it.contains("debug*"))
                                 .filter(it -> it.contains("mix"))
                                 .filter(it -> it.contains("idle")).toArray()
+
+        List<String> indexes = new ArrayList<>()
         for(line in lines){
             String nodeString = line.split(" ").last()
-            //String nodeName = ""
-            List<String> indexes = new ArrayList<>()
             if(nodeString.contains("[")){
                 log.info("Muliple Compute Nodes")
                 nodeString = nodeString.replace("[", ";").replace("]", ";")
                 String nodeName = nodeString.split(";").first()
                 String indexString = nodeString.split(";")[1]
-
                 int startIndex = Integer.parseInt(indexString.split("-").first())
                 int endIndex = Integer.parseInt(indexString.split("-")[1])
                 for(int i = startIndex; i<=endIndex; i++){
@@ -160,7 +159,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         }
         //benchmark network bandwidth
         log.info("Benchmarking Network Link ...")
-        List<Double> bandwidths = new ArrayList<>()
+        //List<Double> bandwidths = new ArrayList<>()
 
         String bw = benchmarkNetworkBandwidth(nodes)
         nodes.forEach(it->log.info(it.toString()))
