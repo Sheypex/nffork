@@ -94,8 +94,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         List<String> listOfNodes = executeCommand(["sinfo"])
         List<String> lines = listOfNodes.stream()
                                 .filter(it -> it.contains("debug*"))
-                                .filter(it -> it.contains("mix"))
-                                .filter(it -> it.contains("idle")).toArray()
+                                .filter(it -> it.contains("mix") || it.contains("idle")).toArray()
 
         List<String> indexes = new ArrayList<>()
         for(line in lines){
