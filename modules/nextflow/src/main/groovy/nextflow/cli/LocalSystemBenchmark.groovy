@@ -775,7 +775,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         //<!-- The network link connects all hosts together -->
         w.writeComment(" The network link connects all hosts together ")
 
-        List<int[]> tuples = generate(nodes.size(), nodes.size())
+        List<int[]> tuples = generate(nodes.size(), 2)
         tuples.forEach(it -> log.info(it.toString()))
 
         //<route src="Host1" dst="Host2">
