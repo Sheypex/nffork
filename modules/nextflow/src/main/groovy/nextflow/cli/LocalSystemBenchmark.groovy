@@ -92,27 +92,33 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
     void renderForClusterHardware(){
         List<String> listOfNodes = executeCommand(["sinfo"])
-        String line = listOfNodes.stream().filter(it -> it.contains("debug*")).toArray().first()
-        String nodeString = line.split(" ").last()
-        //String nodeName = ""
-        List<String> indexes = new ArrayList<>()
-        if(nodeString.contains("[")){
-            log.info("Muliple Compute Nodes")
-            nodeString = nodeString.replace("[", ";").replace("]", ";")
-            String nodeName = nodeString.split(";").first()
-            String indexString = nodeString.split(";")[1]
+        List<String> lines = listOfNodes.stream()
+                                .filter(it -> it.contains("debug*"))
+                                .filter(it -> it.contains("mix"))
+                                .filter(it -> it.contains("idle")).toArray()
+        for(line in lines){
+            String nodeString = line.split(" ").last()
+            //String nodeName = ""
+            List<String> indexes = new ArrayList<>()
+            if(nodeString.contains("[")){
+                log.info("Muliple Compute Nodes")
+                nodeString = nodeString.replace("[", ";").replace("]", ";")
+                String nodeName = nodeString.split(";").first()
+                String indexString = nodeString.split(";")[1]
 
-            int startIndex = Integer.parseInt(indexString.split("-").first())
-            int endIndex = Integer.parseInt(indexString.split("-")[1])
-            for(int i = startIndex; i<=endIndex; i++){
-                indexes.add(nodeName+i.toString())
+                int startIndex = Integer.parseInt(indexString.split("-").first())
+                int endIndex = Integer.parseInt(indexString.split("-")[1])
+                for(int i = startIndex; i<=endIndex; i++){
+                    indexes.add(nodeName+i.toString())
+                }
+            }
+            //only one compute node
+            else{
+                log.info("Single Compute Node")
+                indexes.add(nodeString)
             }
         }
-            //only one compute node
-        else{
-            log.info("Single Compute Node")
-            indexes.add(nodeString)
-        }
+
 
         log.info("Benchmarking Master Node...")
 
