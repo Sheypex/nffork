@@ -640,6 +640,96 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
     void writeHostsXMLFileCluster(List<SlurmNode> nodes, String bandwidth, String latency){
         log.info("Writing Cluster Hardware file: cluster_hosts.xml")
+
+        Path path = new File((System.getProperty("user.dir")+"/cluster_hosts.xml")).toPath()
+        final Charset charset = Charset.defaultCharset()
+        Writer bw = Files.newBufferedWriter(path, charset)
+        final XMLOutputFactory xof = XMLOutputFactory.newFactory()
+        final XMLStreamWriter w = xof.createXMLStreamWriter(bw)
+
+        //<?xml version='1.0'?>
+        w.writeStartDocument(charset.displayName(), "1.0")
+        w.writeCharacters("\n")
+
+        //<!DOCTYPE platform SYSTEM "http://simgrid.gforge.inria.fr/simgrid/simgrid.dtd">
+        w.writeDTD("<!DOCTYPE platform SYSTEM $SIMGRID_DTD>")
+        w.writeCharacters("\n")
+
+        //<platform version="4.1">
+        w.writeStartElement("platform")
+        w.writeAttribute("version", VERSION)
+        w.writeCharacters("\n")
+
+        //<zone id="AS0" routing="Full">
+        w.writeCharacters("\t")
+        w.writeStartElement("zone")
+        w.writeAttribute("id", "AS0")
+        w.writeAttribute("routing", "Full")
+        w.writeCharacters("\n")
+
+        //write hosts
+        //writeHostsCluster(w, nodes)
+
+        //write links
+        //writeLinksCluster(w, nodes)
+
+        //write network routes
+        //writeRoutesCluster(w, nodes)
+
+        //write loopback routes
+        //writeLoopbackRoutesCluster(w, nodes)
+
+        //</zone>
+        w.writeCharacters("\n\t")
+        w.writeEndElement()
+
+        //</platform>
+        w.writeCharacters("\n")
+        w.writeEndElement()
+        w.writeEndDocument()
+        w.flush()
+        bw.flush()
+        bw.close()
+
+    }
+
+    void writeHostsCluster(w, nodes){
+        for(int i = 1; i <= nodes.size(); i++){
+            //<host id="HostXY" speed="xyzGf" core="xy">
+            String hostName = "Host" + i.toString()
+            w.writeCharacters("\t\t")
+            w.writeStartElement("host")
+            w.writeAttribute("id", hostName)
+            w.writeAttribute("speed", nodes[i-1].gFlops.toString() + "Gf")
+            w.writeAttribute("core", nodes[i-1].cores.toString())
+            //<disk id="large_disk" read_bw="xyzMBps" write_bw="xyzMBps">
+            w.writeCharacters("\n\t\t\t")
+            w.writeStartElement("disk")
+            w.writeAttribute("id", "large_disk")
+
+            //WRENCH requires: readSpeed==writeSpeed --> Thus, we use the average of both
+            String avgDiskSpeed = ((nodes[i-1].disk.readSpeed.toDouble() + nodes[i-1].disk.readSpeed.toDouble())/2).round(3).toString()
+            w.writeAttribute("read_bw", avgDiskSpeed+"MBps")
+            w.writeAttribute("write_bw", avgDiskSpeed+"MBps")
+
+            //<prop id="size" value="XYZGiB"/>
+            w.writeCharacters("\n\t\t\t\t")
+            w.writeStartElement("prop")
+            w.writeAttribute("id", "size")
+            w.writeAttribute("value", (nodes[i-1].disk.size+"GiB"))
+            w.writeEndElement()
+            //<prop id="mount" value="/"/>
+            w.writeCharacters("\n\t\t\t\t")
+            w.writeStartElement("prop")
+            w.writeAttribute("id", "mount")
+            w.writeAttribute("value","/")
+            w.writeEndElement()
+
+            //</disk>
+            w.writeCharacters("\n\t\t\t")
+            w.writeEndElement()
+        }
+
     }
 
     static String removeOptionalFromString(String optional){
