@@ -668,7 +668,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         w.writeCharacters("\n")
 
         //write hosts
-        //writeHostsCluster(w, nodes)
+        writeHostsCluster(w, nodes)
 
         //write links
         //writeLinksCluster(w, nodes)
