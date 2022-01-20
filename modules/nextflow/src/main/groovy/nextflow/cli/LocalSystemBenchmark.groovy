@@ -172,8 +172,16 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             String clientCommand = "iperf -c $ip"
             List<String> response = executeCommand(["bash", "-c", clientCommand])
             //parse the bandwidth value
+            response.forEach(it -> log.info(it))
+
+            Long rawBandwidthCount = response.stream()
+                    .filter(it -> it.contains("sec"))
+                    .count()
+            log.info("Size of List: "+ rawBandwidthCount.toString())
+
+
             String rawBandwidth = response.stream()
-                    .filter(it -> it.contains("bits/sec"))
+                    .filter(it -> it.contains("sec"))
                     .map(it -> it.split("Bytes")[1])
                     .map(it -> it.replace(" ", ""))
                     .map(it -> it.replace("bits/sec", "")).toArray().first()
