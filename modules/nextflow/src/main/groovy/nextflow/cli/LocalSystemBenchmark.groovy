@@ -671,7 +671,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         writeHostsCluster(w, nodes)
 
         //write links
-        //writeLinksCluster(w, nodes)
+        writeLinksCluster(w, nodes, bandwidth, latency)
 
         //write network routes
         //writeRoutesCluster(w, nodes)
@@ -693,7 +693,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
     }
 
-    void writeHostsCluster(w, nodes){
+    void writeHostsCluster(XMLStreamWriter w, List<SlurmNode> nodes){
         for(int i = 1; i <= nodes.size(); i++){
             //<host id="HostXY" speed="xyzGf" core="xy">
             String hostName = "Host" + i.toString()
@@ -708,7 +708,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             w.writeAttribute("id", "large_disk")
 
             //WRENCH requires: readSpeed==writeSpeed --> Thus, we use the average of both
-            String avgDiskSpeed = ((nodes[i-1].disk.readSpeed.toDouble() + nodes[i-1].disk.readSpeed.toDouble())/2).round(3).toString()
+            String avgDiskSpeed = ((nodes[i-1].disk.readSpeed.toDouble() + nodes[i-1].disk.writeSpeed.toDouble())/2).round(3).toString()
             w.writeAttribute("read_bw", avgDiskSpeed+"MBps")
             w.writeAttribute("write_bw", avgDiskSpeed+"MBps")
 
@@ -725,7 +725,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             w.writeAttribute("value","/")
             w.writeEndElement()
 
-            //</disk>
+            //</disk>/Users/frederic.risling/Desktop/cluster_hosts.xml
             w.writeCharacters("\n\t\t\t")
             w.writeEndElement()
 
@@ -733,6 +733,33 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             w.writeCharacters("\n\t\t")
             w.writeEndElement()
 
+        }
+
+    }
+
+    void writeLinksCluster(XMLStreamWriter w, List<SlurmNode> nodes, String bandwidth, String latency){
+        w.writeCharacters("\n\n\t\t")
+        w.writeComment(" A network link ")
+        //<link id="network_link" bandwidth="5000GBps" latency="0us"/>
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("link")
+        w.writeAttribute("id", "network_link")
+        w.writeAttribute("bandwidth",  Double.parseDouble(bandwidth).round(3).toString()+"MBps")
+        w.writeAttribute("latency", Double.parseDouble(latency).round(3).toString()+"ms")
+        w.writeEndElement()
+
+        for(int i = 1; i <= nodes.size(); i++){
+            //<!-- Host1's local "loopback" link...-->
+            String str_i = i.toString()
+            w.writeCharacters("\n\t\t")
+            w.writeComment(" Host$str_i's local \"loopback\" link...")
+            //<link id="loopback_Host1" bandwidth="1000EBps" latency="0us"/>
+            w.writeCharacters("\n\t\t")
+            w.writeStartElement("link")
+            w.writeAttribute("id", "loopback_Host$str_i")
+            w.writeAttribute("bandwidth", "1000EBps")
+            w.writeAttribute("latency", "0us")
+            w.writeEndElement()
         }
 
     }
