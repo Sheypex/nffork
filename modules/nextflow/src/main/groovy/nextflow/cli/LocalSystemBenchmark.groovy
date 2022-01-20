@@ -677,7 +677,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         writeRoutesCluster(w, nodes)
 
         //write loopback routes
-        //writeLoopbackRoutesCluster(w, nodes)
+        writeLoopbackRoutesCluster(w, nodes)
 
         //</zone>
         w.writeCharacters("\n\t")
@@ -789,6 +789,29 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             w.writeCharacters("\n\t\t\t")
             w.writeStartElement("link_ctn")
             w.writeAttribute("id", "network_link")
+            w.writeEndElement()
+            //</route>
+            w.writeCharacters("\n\t\t")
+            w.writeEndElement()
+        }
+    }
+
+    void writeLoopbackRoutesCluster(XMLStreamWriter w, List<SlurmNode> nodes){
+        w.writeCharacters("\n\n\n\t\t")
+        //<!-- Each loopback link connects each host to itself -->
+        w.writeComment(" Each loopback link connects each host to itself ")
+
+        for(int i = 0; i <= nodes.size(); i++){
+            String ind = (i+1).toString()
+            //<route src="Host1" dst="Host1">
+            w.writeCharacters("\n\t\t")
+            w.writeStartElement("route")
+            w.writeAttribute("src", "Host$ind")
+            w.writeAttribute("dst", "Host$ind")
+            //  <link_ctn id="network_link"/>
+            w.writeCharacters("\n\t\t\t")
+            w.writeStartElement("link_ctn")
+            w.writeAttribute("id", "loopback_Host$ind")
             w.writeEndElement()
             //</route>
             w.writeCharacters("\n\t\t")
