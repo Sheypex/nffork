@@ -674,7 +674,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         writeLinksCluster(w, nodes, bandwidth, latency)
 
         //write network routes
-        //writeRoutesCluster(w, nodes)
+        writeRoutesCluster(w, nodes)
 
         //write loopback routes
         //writeLoopbackRoutesCluster(w, nodes)
@@ -744,7 +744,13 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         w.writeCharacters("\n\t\t")
         w.writeStartElement("link")
         w.writeAttribute("id", "network_link")
-        w.writeAttribute("bandwidth",  Double.parseDouble(bandwidth).round(3).toString()+"MBps")
+        //catch the case where the networkBandwidth couldnt be parsed
+        if(bandwidth == "NaN"){
+            w.writeAttribute("bandwidth",  "12500MBps")
+        }
+        else{
+            w.writeAttribute("bandwidth",  Double.parseDouble(bandwidth).round(3).toString()+"MBps")
+        }
         w.writeAttribute("latency", Double.parseDouble(latency).round(3).toString()+"ms")
         w.writeEndElement()
 
@@ -764,9 +770,52 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
     }
 
+    void writeRoutesCluster(XMLStreamWriter w, List<SlurmNode> nodes){
+        w.writeCharacters("\n\n\n\t\t")
+        //<!-- The network link connects all hosts together -->
+        w.writeComment(" The network link connects all hosts together ")
+
+        List<int[]> tuples = generate(nodes.size(), nodes.size())
+        tuples.forEach(it -> log.info(it.toString()))
+
+        //<route src="Host1" dst="Host2">
+        w.writeCharacters("\n\t\t")
+        w.writeStartElement("route")
+        w.writeAttribute("src", "Host1")
+        w.writeAttribute("dst", "Host2")
+        //  <link_ctn id="network_link"/>
+        w.writeCharacters("\n\t\t\t")
+        w.writeStartElement("link_ctn")
+        w.writeAttribute("id", "network_link")
+        w.writeEndElement()
+        //</route>
+        w.writeCharacters("\n\t\t")
+        w.writeEndElement()
+
+
+    }
+
     static String removeOptionalFromString(String optional){
         String split1 = optional.split("Optional")[1]
         return split1.substring(1, split1.length()-1)
+    }
+
+    //https://www.baeldung.com/java-combinations-algorithm
+    List<int[]> generate(int n, int r) {
+        List<int[]> combinations = new ArrayList<>()
+        helper(combinations, new int[r], 0, n-1, 0)
+        return combinations;
+    }
+
+    private void helper(List<int[]> combinations, int[] data, int start, int end, int index) {
+        if (index == data.length) {
+            int[] combination = data.clone()
+            combinations.add(combination)
+        } else if (start <= end) {
+            data[index] = start
+            helper(combinations, data, start + 1, end, index + 1)
+            helper(combinations, data, start + 1, end, index)
+        }
     }
 
 
