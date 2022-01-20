@@ -157,12 +157,12 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             nodes.add(slurmNode)
         }
         //benchmark network bandwidth
-        log.info("Benchmarking Network Link ...")
-        //List<Double> bandwidths = new ArrayList<>()
 
         String bw = benchmarkNetworkBandwidth(nodes)
+        String latency = benchmarkNetworkLatency(nodes)
         nodes.forEach(it->log.info(it.toString()))
         log.info("Network-Bandwidth: $bw MBps")
+        log.info("Latency: $latency ms")
 
     }
 
@@ -577,23 +577,18 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             if (node.role == SlurmNode.Role.MASTER) continue
             String nodeName = node.name
 
-            log.info("startServer")
+            //start server
             String serverScript = new File((System.getProperty("user.dir") + "/modules/nextflow/src/main/resources/slurm/iperfServer.sh")).toString()
             String serverCommand = "sbatch -w $nodeName $serverScript"
             executeCommand(["bash", "-c", serverCommand])
 
             //startClient
-            log.info("start client ...")
             String ip = node.ipAddress
             String clientCommand = "iperf -c $ip"
             List<String> response = executeCommand(["bash", "-c", clientCommand])
 
+            //added so that there is enough time to finish previous execution
             Thread.sleep(5000)
-
-            Long count = response.stream()
-                    .filter(it -> it.contains("sec"))
-                    .count()
-            log.info("Array has : " + count.toString() + " entries")
 
             //parse the bandwidth value
             String rawBandwidth = response.stream()
@@ -613,6 +608,27 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         Double bandwidthSum = bandwidths.stream().reduce(0, (a, b) -> a + b)
         bandwidth = (bandwidthSum / bandwidths.size()).toString()
         bandwidth
+    }
+
+    String benchmarkNetworkLatency(List<SlurmNode>nodes){
+        List<Double> pings = new ArrayList<>()
+        for (node in nodes){
+            String ip = node.ipAddress
+            String command = "timeout 10 ping $ip"
+            List<String> response = executeCommand(["bash", "-c", command])
+            response.forEach(it -> log.info(it))
+            List<Double> ping = response.stream()
+                    .filter(it -> !it.contains("PING"))
+                    .map(it -> it.split("time=")[1])
+                    .map(it -> it.split(" ")[0])
+                    .map(it -> Double.parseDouble(it)).toArray()
+            ping.forEach(it -> log.info(it.toString()))
+            Double sum = ping.stream().reduce(0, (a,b) -> a+b)
+            log.info(" SUMME : "+ sum.toString())
+            pings.add(sum/ping.size())
+        }
+        Double totalSum = pings.stream().reduce(0, (a,b) -> a+b)
+        (totalSum/pings.size()).toString()
     }
 
     static String removeOptionalFromString(String optional){
