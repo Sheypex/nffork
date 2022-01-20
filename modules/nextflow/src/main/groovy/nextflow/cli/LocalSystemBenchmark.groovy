@@ -91,12 +91,14 @@ class LocalSystemBenchmark  implements SystemBenchmark{
     }
 
     void renderForClusterHardware(){
+        //get all computing nodes
         List<String> listOfNodes = executeCommand(["sinfo"])
         List<String> lines = listOfNodes.stream()
                                 .filter(it -> it.contains("debug*"))
                                 .filter(it -> it.contains("mix") || it.contains("idle")).toArray()
-
+        //save indexes of nodes
         List<String> indexes = new ArrayList<>()
+        //iterate through all nodes in idle or mix state
         for(line in lines){
             String nodeString = line.split(" ").last()
             if(nodeString.contains("[")){
@@ -110,43 +112,45 @@ class LocalSystemBenchmark  implements SystemBenchmark{
                     indexes.add(nodeName+i.toString())
                 }
             }
-            //only one compute node
+            //only one compute node in line
             else{
-                log.info("Single Compute Node")
+                log.info("Found Compute Node")
                 indexes.add(nodeString)
             }
         }
 
 
+        //Benchmark master node (local)
         log.info("Benchmarking Master Node...")
-
+        //gflops master
         String local_gFlops = executeGFlopsBenchmark()//Get number of cores
+        //cores master
         ArrayList<String> coresRaw = executeCommand(["getconf","_NPROCESSORS_ONLN"])
         String local_cores = coresRaw.first()
-
+        //disk master
         //read speed fileio
         String rawReadSpeedData = executeSysbenchCommand(["/bin/bash", "-c", "sysbench --file-test-mode=seqrd fileio prepare;sysbench --file-test-mode=seqrd fileio run"], \
              "read, MiB/s", ":", 1)
         Double readSpeedDataMiB = rawReadSpeedData.toDouble()
         //convert to MBps
         String local_readSpeed = (readSpeedDataMiB * 1.048576).round(3).toString()
-
         //write speed fileio
         String rawWriteSpeedData = executeSysbenchCommand(["/bin/bash", "-c", "sysbench --file-test-mode=seqwr fileio prepare;sysbench --file-test-mode=seqwr fileio run"], \
              "written, MiB/s", ":", 1)
         Double writeSpeedDataMiB = rawWriteSpeedData.toDouble()
         //convert to MBps
         String local_writeSpeed = (writeSpeedDataMiB * 1.048576).round(3).toString()
-
         //disk size
         File file = new File("/")
         //Convert Byte to Gibibyte (GiB) by dividing by 1.074e+9
         int local_space = file.totalSpace/1.074e+9
 
+        //ip address for master
         String ipCommand = "hostname -I"
         String ipResponse = executeCommand(["bash", "-c", ipCommand]).first()
         String ipAddress = ipResponse.split(" ").first()
 
+        //add master node to node list
         List<SlurmNode> nodes = new ArrayList<>()
         nodes.add(new SlurmNode("Master", SlurmNode.Role.MASTER, Double.parseDouble(local_gFlops), \
                     Integer.parseInt(local_cores), new Disk(local_readSpeed, local_writeSpeed, local_space.toString()), ipAddress))
@@ -157,12 +161,18 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             nodes.add(slurmNode)
         }
         //benchmark network bandwidth
-
         String bw = benchmarkNetworkBandwidth(nodes)
+        //benchmark network latency
         String latency = benchmarkNetworkLatency(nodes)
+        // print all nodes
         nodes.forEach(it->log.info(it.toString()))
+        //print network bandwidth
         log.info("Network-Bandwidth: $bw MBps")
+        //print network latency
         log.info("Latency: $latency ms")
+
+        //write cluster host XML file
+        writeHostsXMLFileCluster(nodes, bw, latency)
 
     }
 
@@ -487,7 +497,8 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
     SlurmNode getSlurmNode(String nodeName){
         log.info("Benchmarking Node: $nodeName ...")
-        //GFlops docker run -e LINPACK_ARRAY_SIZE=150 h20180061/linpack
+
+        //Gflops
         String gFlopCommand = "srun -l --nodelist=$nodeName docker run h20180061/linpack"
         List<String> gFlopResponse = executeCommand(["bash", "-c", gFlopCommand])
         int count = gFlopResponse.stream()
@@ -501,18 +512,14 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
         Double avg = sum/count
         String gFlops = (avg/10000).round(3).toString()
-        //log.info("GFLOPS: $gFlops")
 
-        //cores: srun -l --nodelist=test-compute-0-0 getconf _NPROCESSORS_ONLN
+        //cores
         String coreCommand = "srun --nodelist=$nodeName getconf _NPROCESSORS_ONLN"
         String cores = executeCommand(["bash", "-c", coreCommand]).first()
-        //log.info("CORES: $cores")
-
 
         //DISK
         String diskCommand = "srun --nodelist=$nodeName docker run severalnines/sysbench /bin/bash -c ; sysbench --file-test-mode=seqrd fileio prepare; sysbench --file-test-mode=seqrd fileio run; sysbench --file-test-mode=seqwr fileio run"
         List<String> diskResponse = executeCommand(["bash", "-c", diskCommand])
-        //diskResponse.forEach(it-> log.info(it))
 
         //diskReadSpeed
         String readSpeed = diskResponse.stream()
@@ -521,7 +528,6 @@ class LocalSystemBenchmark  implements SystemBenchmark{
                     .map(it -> Double.parseDouble(it))
                     .filter(it -> it > 0)
                     .map(it -> (it*1.048576).toString()).toArray().first()
-        //log.info("readSpeed; $readSpeed")
 
         //diskWriteSpeed
         String writeSpeed = diskResponse.stream()
@@ -530,8 +536,6 @@ class LocalSystemBenchmark  implements SystemBenchmark{
                 .map(it -> Double.parseDouble(it))
                 .filter(it -> it > 0)
                 .map(it -> (it*1.048576).toString()).toArray().first()
-
-        //log.info("writeSpeed: $writeSpeed")
 
         //diskSize
         String diskSizeCommand = "srun --nodelist=$nodeName df"
@@ -600,7 +604,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
                         .map(it -> it.replace("bits/sec", "")).toArray().first()
             }
             catch (Exception e){
-                log.info("Could not benchmark network link for: $nodeName ")
+                log.info("Could not benchmark network link for: $nodeName Cause: node is in state: mixed")
             }
 
             if (rawBandwidth.contains("G")) {
@@ -622,19 +626,20 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             String ip = node.ipAddress
             String command = "timeout 10 ping $ip"
             List<String> response = executeCommand(["bash", "-c", command])
-            response.forEach(it -> log.info(it))
             List<Double> ping = response.stream()
                     .filter(it -> !it.contains("PING"))
                     .map(it -> it.split("time=")[1])
                     .map(it -> it.split(" ")[0])
                     .map(it -> Double.parseDouble(it)).toArray()
-            ping.forEach(it -> log.info(it.toString()))
             Double sum = ping.stream().reduce(0, (a,b) -> a+b)
-            log.info(" SUMME : "+ sum.toString())
             pings.add(sum/ping.size())
         }
         Double totalSum = pings.stream().reduce(0, (a,b) -> a+b)
         (totalSum/pings.size()).toString()
+    }
+
+    void writeHostsXMLFileCluster(List<SlurmNode> nodes, String bandwidth, String latency){
+        log.info("Writing Cluster Hardware file: cluster_hosts.xml")
     }
 
     static String removeOptionalFromString(String optional){
@@ -664,14 +669,6 @@ class LocalSystemBenchmark  implements SystemBenchmark{
         this.ipAddress = ipAddress
     }
 
-    boolean setDisk(Double readSpeed, Double writeSpeed, Double size){
-        if(this.disk == null){
-            this.disk = new Disk(readSpeed, writeSpeed, size)
-            return true
-        }
-        return false
-    }
-
     String toString(){
         return "name: $name, role: $role, gFlops: $gFlops, cores: $cores, disk: $disk, ipAddress: $ipAddress"
     }
@@ -690,7 +687,7 @@ class Disk{
     }
 
     String toString(){
-        "Disk(readSpeed: $readSpeed, writeSpeed: $writeSpeed, size: $size)"
+        "Disk(readSpeed: $readSpeed, writeSpeed: $writeSpeed, size: $size"
     }
 
 }
