@@ -19,6 +19,9 @@ class LocalSystemBenchmark  implements SystemBenchmark{
 
     private boolean local
 
+    private boolean benchmark
+
+
     /**
      * format of the file (!DOCTYPE)
      */
@@ -35,9 +38,11 @@ class LocalSystemBenchmark  implements SystemBenchmark{
     LocalSystemBenchmark(){
         if(new File((System.getProperty("user.dir")+"/nextflow.config")).isFile()){
             this.local = !checkIfSlurmConfigured()
+            this.benchmark = checkIfBenchmarkConfigured()
         }
         else{
             this.local = true
+            this.benchmark = true
         }
     }
 
@@ -51,8 +56,11 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             renderForLocalHardware()
         }
         else {
-            log.info("Render Cluster Hardware Document")
-            renderForClusterHardware()
+            if(benchmark){
+                log.info("Render Cluster Hardware Document")
+                renderForClusterHardware()
+            }
+
         }
     }
 
@@ -567,6 +575,20 @@ class LocalSystemBenchmark  implements SystemBenchmark{
             String line = scanner.nextLine();
             lineNum++
             if(line.contains("slurm")) {
+                return true
+            }
+        }
+        false
+    }
+
+    boolean checkIfBenchmarkConfigured(){
+        File file = new File(System.getProperty("user.dir")+"/nextflow.config")
+        Scanner scanner = new Scanner(file)
+        int lineNum = 0
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine();
+            lineNum++
+            if(line.contains("benchmark")) {
                 return true
             }
         }
