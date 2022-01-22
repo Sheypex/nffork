@@ -403,7 +403,26 @@ class CmdRun extends CmdBase implements HubOptions {
 
 
         // Benchmark the executing System.
-        SystemBenchmark sb = new LocalSystemBenchmark()
+        File file = new File(System.getProperty("user.dir")+"/nextflow.config")
+        Scanner scanner = new Scanner(file)
+        boolean local = true
+        int lineNum = 0
+        while (scanner.hasNextLine()) {
+            String line = scanner.nextLine();
+            lineNum++
+            if(line.contains("slurm")) {
+                local = false
+            }
+        }
+
+        SystemBenchmark sb
+        if (local){
+            sb = new LocalSystemBenchmark()
+        }
+        else{
+            sb = new SlurmSystemBenchmark()
+        }
+
         sb.renderHardwareDocument()
 
         /*
