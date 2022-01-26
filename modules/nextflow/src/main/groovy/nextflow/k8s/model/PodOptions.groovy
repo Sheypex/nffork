@@ -55,12 +55,17 @@ class PodOptions {
 
     private PodSecurityContext securityContext
 
+    private boolean automountServiceAccountToken
+
+    private String priorityClassName
+
     PodOptions( List<Map> options=null ) {
         int size = options ? options.size() : 0
         envVars = new HashSet<>(size)
         mountSecrets = new HashSet<>(size)
         mountConfigMaps = new HashSet<>(size)
         mountClaims = new HashSet<>(size)
+        automountServiceAccountToken = true
         init(options)
     }
 
@@ -117,6 +122,12 @@ class PodOptions {
         else if( entry.annotation && entry.value ) {
             this.annotations.put(entry.annotation as String, entry.value as String)
         }
+        else if( entry.automountServiceAccountToken instanceof Boolean ) {
+            this.automountServiceAccountToken = entry.automountServiceAccountToken as Boolean
+        }
+        else if( entry.priorityClassName ) {
+            this.priorityClassName = entry.priorityClassName
+        }
         else 
             throw new IllegalArgumentException("Unknown pod options: $entry")
     }
@@ -163,6 +174,15 @@ class PodOptions {
         this.imagePullPolicy = policy
         return this
     }
+
+    boolean getAutomountServiceAccountToken() { automountServiceAccountToken }
+
+    PodOptions setAutomountServiceAccountToken( boolean mount ) {
+        this.automountServiceAccountToken = mount
+        return this
+    }
+
+    String getPriorityClassName() { priorityClassName }
 
     PodOptions plus( PodOptions other ) {
         def result = new PodOptions()
@@ -214,6 +234,12 @@ class PodOptions {
         // annotations
         result.annotations.putAll(annotations)
         result.annotations.putAll(other.annotations)
+
+        // automount service account token
+        result.automountServiceAccountToken = other.automountServiceAccountToken & this.automountServiceAccountToken
+
+        // priority class name
+        result.priorityClassName = other.priorityClassName ?: this.priorityClassName
 
         return result
     }
