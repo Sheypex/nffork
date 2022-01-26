@@ -20,7 +20,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
      * states whether a benchmark should be executed or not
      * add - benchmark = 'true' - to the nextflow.config in the working directory to execute a benchmark
      */
-    boolean benchmark
+    private boolean benchmark
 
     /**
      * constructor for a LocalSystemBenchmark instance
@@ -95,7 +95,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
     }
 
 
-    private String executeGFlopsBenchmark(){
+    private static String executeGFlopsBenchmark(){
         //docker run -it --rm h20180061/linpack
         List<String> output = executeCommand(["/bin/bash", "-c" ,"docker run -e LINPACK_ARRAY_SIZE=150 h20180061/linpack"])
 
@@ -140,7 +140,7 @@ class LocalSystemBenchmark  implements SystemBenchmark{
     }
 
 
-    private void writeHostsXMLFileLocal(String gFlops, String cores, String readSpeed, String writeSpeed, String diskSize){
+    private static void writeHostsXMLFileLocal(String gFlops, String cores, String readSpeed, String writeSpeed, String diskSize){
         Path path = new File((System.getProperty("user.dir")+"/local_host.xml")).toPath()
         final Charset charset = Charset.defaultCharset()
         Writer bw = Files.newBufferedWriter(path, charset)

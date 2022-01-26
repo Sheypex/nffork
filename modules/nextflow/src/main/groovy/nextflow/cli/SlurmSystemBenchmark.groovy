@@ -20,7 +20,7 @@ class SlurmSystemBenchmark  implements SystemBenchmark{
      * states whether a benchmark should be executed or not
      * add - benchmark = 'true' - to the nextflow.config in the working directory to execute a benchmark
      */
-    boolean benchmark
+    private boolean benchmark
 
     /**
      * constructor for a LocalSystemBenchmark instance

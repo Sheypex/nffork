@@ -101,7 +101,7 @@ class DAXRenderer implements DagRenderer {
     /**
      * creates a <filename>.dax representation in the current directory
      */
-    void renderDAX() {
+    private void renderDAX() {
         //Create .dax file Header and meta information
         final Charset charset = Charset.defaultCharset()
         Writer bw = Files.newBufferedWriter(this.path, charset)
@@ -116,33 +116,27 @@ class DAXRenderer implements DagRenderer {
         w.writeAttribute("xmlns:xsi", XMLNS_XSI)
         w.writeAttribute("xsi:schemaLocation", XSI_LOCATION)
         w.writeAttribute("version", VERSION)
-        //TODO: Attribut count
-        //TODO: Attribut index
-        //TODO: Attribut name
-        //TODO: Attribut jobCount
-        //TODO: Attribut fileCount
-        //TODO: Attribut childCount
 
 
-        //Part 1: List of all referenced files
-        def edges = dag.edges
-        w.writeCharacters("\n")
-        w.writeComment(" part 1: list of all referenced files (may be empty) ")
-        def refFiles = edges.stream()
-                .filter(edge -> edge.from != null)
-                .filter(edge -> edge.from.type == DAG.Type.ORIGIN)
-                .map(edge -> edge.from.label.toString())
-                .distinct()
-                .toArray()
-        for (file in refFiles) {
-            if (file.toString() == "null") {
-                break
-            }
-            w.writeCharacters("\n")
-            w.writeStartElement("file")
-            w.writeAttribute("name", file.toString())
-            w.writeEndElement()
-        }
+//        //Part 1: List of all referenced files
+//        def edges = dag.edges
+//        w.writeCharacters("\n")
+//        w.writeComment(" part 1: list of all referenced files (may be empty) ")
+//        def refFiles = edges.stream()
+//                .filter(edge -> edge.from != null)
+//                .filter(edge -> edge.from.type == DAG.Type.ORIGIN)
+//                .map(edge -> edge.from.label.toString())
+//                .distinct()
+//                .toArray()
+//        for (file in refFiles) {
+//            if (file.toString() == "null") {
+//                break
+//            }
+//            w.writeCharacters("\n")
+//            w.writeStartElement("file")
+//            w.writeAttribute("name", file.toString())
+//            w.writeEndElement()
+//        }
 
         //Part 2: List of all executed Jobs
         w.writeCharacters("\n")
@@ -151,6 +145,7 @@ class DAXRenderer implements DagRenderer {
         //map entries are not sorted so first we have to sort them
 
         for (record in records) {
+            log.info("TaskId: " + record.value.get("task_id").toString() + " realtime: " + record.value.get("realtime").toString() + " duration: " + record.value.get("duration").toString())
             //add files to file list
             addFilesForRecord(record.value)
             //<job>-element + attributes
@@ -204,13 +199,13 @@ class DAXRenderer implements DagRenderer {
         tform.transform(new DOMSource(doc), new StreamResult(path.toFile()))
     }
 
-    String generateNamespace() {
+    private String generateNamespace() {
         String name = session.getWorkflowMetadata().projectName
         def split = name.split("/")
         return split[1]
     }
 
-    void addFilesForRecord(TraceRecord record) {
+    private void addFilesForRecord(TraceRecord record) {
 
         //the directory for this record
         Path path = Paths.get(record.get("workdir"))
@@ -303,7 +298,7 @@ class DAXRenderer implements DagRenderer {
 
     }
 
-    void writeInputEdges(
+    private void writeInputEdges(
             TraceRecord record, XMLStreamWriter w) {
 
         //filter all the inputs for this task
@@ -322,7 +317,7 @@ class DAXRenderer implements DagRenderer {
         }
     }
 
-    void writeOutputEdges(TraceRecord record, XMLStreamWriter w) {
+    private void writeOutputEdges(TraceRecord record, XMLStreamWriter w) {
 
         HashSet<FileDependency> filtered = new HashSet<>()
         List<FileDependency> outputs = files.stream()
@@ -346,7 +341,7 @@ class DAXRenderer implements DagRenderer {
 
 
 
-    void writeDependencies(XMLStreamWriter w){
+    private void writeDependencies(XMLStreamWriter w){
 
         for (record in records){
             //get all inputs for this task
@@ -361,6 +356,8 @@ class DAXRenderer implements DagRenderer {
                 ArrayList<String> parentsForInput = files.stream()
                         .filter(file -> file.output)
                         .filter(file -> file.name == input.name)
+                        //filter out duplicates
+                        .filter(file -> file.tag == input.tag)
                         //filter out cycles
                         .filter(file -> file.taskId.toInteger()<record.value.taskId)
                         .map(file -> file.taskId)
