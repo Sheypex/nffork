@@ -155,21 +155,14 @@ class DAXRenderer implements DagRenderer {
             w.writeAttribute("namespace", namespace)
             String name = record.value.get("name")
             w.writeAttribute("name", name)
-            double realtime = record.value.get("duration") / 1000
+            double runtime = (record.value.get("duration") / 1000)
 
-            //log.info("Realtime: " + record.value.get("realtime").toString())
-            //log.info("Duration: " + record.value.get("duration").toString())
+            int cores = record.value.get("cpus")
 
-            //fix for 1-core jobs
-            if(record.value.get("cpus").toString()=="1"){
-                w.writeAttribute("runtime", Double.toString(realtime/2))
-                w.writeAttribute("runtime_raw", Double.toString(realtime))
-            }
-            else{
-                w.writeAttribute("runtime", Double.toString(realtime))
-                w.writeAttribute("runtime_raw", Double.toString(realtime))
-            }
-            w.writeAttribute("numcores", record.value.get("cpus").toString())
+            //WRENCH assumes the runtime is the time the task would need to run on a single core
+            w.writeAttribute("runtime", Double.toString(runtime*cores))
+            w.writeAttribute("runtime_raw", Double.toString(runtime))
+            w.writeAttribute("numcores", cores.toString())
 
             //input files
             writeInputEdges(record.value, w)
