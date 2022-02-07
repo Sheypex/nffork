@@ -1,6 +1,5 @@
 /*
  * Copyright 2020-2022, Seqera Labs
- * Copyright 2013-2019, Centre for Genomic Regulation (CRG)
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,26 +12,21 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
+ *
  */
 
-package nextflow.processor
+package nextflow.exception
 
-import groovy.transform.EqualsAndHashCode
-import groovy.transform.ToString
-import groovy.transform.TupleConstructor
-import nextflow.trace.TraceRecord
+import groovy.transform.CompileStatic
+import groovy.transform.InheritConstructors
+
 /**
- * Model a task entry persisted in the {@link nextflow.cache.CacheDB}
+ * Exception thrown when a third party service API rate
+ * limit is reached
  *
  * @author Paolo Di Tommaso <paolo.ditommaso@gmail.com>
  */
-@ToString
-@EqualsAndHashCode
-@TupleConstructor
-class TaskEntry {
-
-    TraceRecord trace
-
-    TaskContext context
-
+@InheritConstructors
+@CompileStatic
+class RateLimitExceededException extends AbortOperationException {
 }
