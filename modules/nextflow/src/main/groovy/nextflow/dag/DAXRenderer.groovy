@@ -145,7 +145,8 @@ class DAXRenderer implements DagRenderer {
         //map entries are not sorted so first we have to sort them
 
         for (record in records) {
-            log.info("TaskId: " + record.value.get("task_id").toString() + " realtime: " + record.value.get("realtime").toString() + " duration: " + record.value.get("duration").toString())
+            //log.info("TaskId: " + record.value.get("task_id").toString() + " realtime: " + record.value.get("realtime").toString() + " duration: " + record.value.get("duration").toString())
+
             //add files to file list
             addFilesForRecord(record.value)
             //<job>-element + attributes
@@ -155,7 +156,7 @@ class DAXRenderer implements DagRenderer {
             w.writeAttribute("namespace", namespace)
             String name = record.value.get("name")
             w.writeAttribute("name", name)
-            double runtime = (record.value.get("duration") / 1000)
+            double runtime = (record.value.get("realtime") / 1000)
 
             int cores = record.value.get("cpus")
 
@@ -246,6 +247,7 @@ class DAXRenderer implements DagRenderer {
                 String taskId = record.get("task_id")
                 Path filePath = Paths.get(f.toString().split(" ").first())
                 String tag = record.get("tag")
+                if(filePath.toString()=="-f")continue
                 long fileSize = Files.size(filePath)
 
                 //create an input FileDependency
