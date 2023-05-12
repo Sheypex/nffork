@@ -28,9 +28,10 @@ import groovy.transform.CompileStatic
 import groovy.transform.Memoized
 import groovy.util.logging.Slf4j
 import nextflow.Const
+import nextflow.SysEnv
 import nextflow.exception.AbortOperationException
+import nextflow.exception.ProcessUnrecoverableException
 import nextflow.util.CacheHelper
-
 /**
  * Implements a secrets store that saves secrets into a JSON file save into the
  * nextflow home. The file can be relocated using the env variable {@code NXF_SECRETS_FILE}.
@@ -46,7 +47,7 @@ class LocalSecretsProvider implements SecretsProvider, Closeable {
 
     final private static String ONLY_OWNER_PERMS = 'rw-------'
 
-    private Map<String,String> env = System.getenv()
+    private Map<String,String> env = SysEnv.get()
 
     private Map<String,Secret> secretsMap
 
@@ -67,7 +68,7 @@ class LocalSecretsProvider implements SecretsProvider, Closeable {
                 : Const.APP_HOME_DIR.resolve(name)
         final path = secretFile.parent
         if( !path.exists() && !path.parent.mkdirs() )
-            throw new IllegalStateException("Cannot create directory '${path}' -- make sure you have write permissions or file with the same name already exists")
+            throw new IllegalStateException("Cannot create directory '${path}' -- make sure a file with the same name doesn't already exist and you have write permissions")
         return secretFile
     }
 
@@ -144,7 +145,7 @@ class LocalSecretsProvider implements SecretsProvider, Closeable {
         assert secrets != null
         final parent = storeFile.getParent()
         if( !parent.exists() && !parent.mkdirs() )
-            throw new IOException("Unable to create folder: $parent -- Check file system permission" )
+            throw new IOException("Unable to create directory: $parent -- Check file system permissions" )
         // save the secrets as JSON file
         final json = new GsonBuilder().setPrettyPrinting().create().toJson(secrets)
         Files.write(storeFile, json.getBytes('utf-8'))
@@ -162,6 +163,15 @@ class LocalSecretsProvider implements SecretsProvider, Closeable {
     String getSecretsEnv(List<String> secretNames) {
         if( !secretNames )
             return null
+        // find out if any required secret is missing
+        final missing = secretNames - this.listSecretsNames()
+        if( missing ) {
+            final names = missing.collect(it -> "'$it'").join(', ')
+            final msg = missing.size()==1
+                    ? "Required secret is missing: $names"
+                    : "Required secrets are missing: $names"
+            throw new ProcessUnrecoverableException(msg)
+        }
         final filter = secretNames.collect(it -> "-e '$it=.*'").join(' ')
         final tmp = makeTempSecretsFile()
         // mac does not allow source an anonymous pipe

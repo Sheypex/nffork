@@ -18,13 +18,12 @@
 package nextflow.cloud.aws.batch
 
 import java.nio.file.Path
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
 import com.amazonaws.services.batch.AWSBatch
 import com.amazonaws.services.batch.model.AWSBatchException
 import com.amazonaws.services.ecs.model.AccessDeniedException
+import com.amazonaws.services.logs.model.ResourceNotFoundException
 import com.upplication.s3fs.S3Path
 import groovy.transform.CompileDynamic
 import groovy.transform.CompileStatic
@@ -34,6 +33,7 @@ import nextflow.cloud.aws.AmazonClientFactory
 import nextflow.cloud.types.CloudMachineInfo
 import nextflow.exception.AbortOperationException
 import nextflow.executor.Executor
+import nextflow.executor.fusion.FusionHelper
 import nextflow.extension.FilesEx
 import nextflow.processor.ParallelPollingMonitor
 import nextflow.processor.TaskHandler
@@ -42,6 +42,7 @@ import nextflow.processor.TaskRun
 import nextflow.util.Duration
 import nextflow.util.RateUnit
 import nextflow.util.ServiceName
+import nextflow.util.ThreadPoolHelper
 import nextflow.util.ThrottlingExecutor
 import org.pf4j.ExtensionPoint
 /**
@@ -54,6 +55,8 @@ import org.pf4j.ExtensionPoint
 @ServiceName('awsbatch')
 @CompileStatic
 class AwsBatchExecutor extends Executor implements ExtensionPoint {
+
+    private Map<String,String> sysEnv = System.getenv()
 
     /**
      * Proxy to throttle AWS batch client requests
@@ -110,7 +113,7 @@ class AwsBatchExecutor extends Executor implements ExtensionPoint {
          */
         if( !(workDir instanceof S3Path) ) {
             session.abort()
-            throw new AbortOperationException("When using `$name` executor a S3 bucket must be provided as working directory either using -bucket-dir or -work-dir command line option")
+            throw new AbortOperationException("When using `$name` executor an S3 bucket must be provided as working directory using either the `-bucket-dir` or `-work-dir` command line option")
         }
     }
 
@@ -125,8 +128,7 @@ class AwsBatchExecutor extends Executor implements ExtensionPoint {
         /*
          * upload local binaries
          */
-        def disableBinDir = session.getExecConfigProp(name, 'disableRemoteBinDir', false)
-        if( session.binDir && !session.binDir.empty() && !disableBinDir ) {
+        if( session.binDir && !session.binDir.empty() && !session.disableRemoteBinDir ) {
             def s3 = getTempDir()
             log.info "Uploading local `bin` scripts folder to ${s3.toUriString()}/bin"
             remoteBinDir = FilesEx.copyTo(session.binDir, s3)
@@ -186,12 +188,14 @@ class AwsBatchExecutor extends Executor implements ExtensionPoint {
 
         final pollInterval = session.getPollInterval(name, Duration.of('10 sec'))
         final dumpInterval = session.getMonitorDumpInterval(name)
+        final capacity = session.getQueueSize(name, 1000)
 
         final def params = [
                 name: name,
                 session: session,
                 pollInterval: pollInterval,
-                dumpInterval: dumpInterval
+                dumpInterval: dumpInterval,
+                capacity: capacity
         ]
 
         log.debug "Creating parallel monitor for executor '$name' > pollInterval=$pollInterval; dumpInterval=$dumpInterval"
@@ -218,7 +222,8 @@ class AwsBatchExecutor extends Executor implements ExtensionPoint {
      */
     private ThrottlingExecutor createExecutorService(String name) {
 
-        final qs = session.getQueueSize(name, 5_000)
+        // queue size can be overridden by submitter options below
+        final qs = 5_000
         final limit = session.getExecConfigProp(name,'submitRateLimit','50/s') as String
         final size = Runtime.runtime.availableProcessors() * 5
 
@@ -241,6 +246,11 @@ class AwsBatchExecutor extends Executor implements ExtensionPoint {
     @CompileDynamic
     protected Map getConfigOpts() {
         session.config?.executor?.submitter as Map
+    }
+
+    @Override
+    boolean isFusionEnabled() {
+        return FusionHelper.isFusionEnabled(session, sysEnv)
     }
 
     protected void logRateLimitChange(RateUnit rate) {
@@ -271,10 +281,13 @@ class AwsBatchExecutor extends Executor implements ExtensionPoint {
         try {
             return helper.getTaskLogStream(jobId)
         }
+        catch (ResourceNotFoundException e) {
+            log.debug "Unable to find AWS Cloudwatch logs for Batch Job id=$jobId - ${e.message}"
+        }
         catch (Exception e) {
             log.debug "Unable to retrieve AWS Cloudwatch logs for Batch Job id=$jobId | ${e.message}", e
-            return null
         }
+        return null
     }
 
     @Override
@@ -285,38 +298,9 @@ class AwsBatchExecutor extends Executor implements ExtensionPoint {
         // -- finally delete cleanup executor
         // start shutdown process
         reaper.shutdown()
-        await0(reaper, Duration.of('60min'))
-    }
-
-    private await0(ExecutorService pool, Duration maxAwait) {
-        final max = maxAwait.millis
-        final t0 = System.currentTimeMillis()
-        // wait for ongoing file transfer to complete
-        int count=0
-        while( true ) {
-            final terminated = pool.awaitTermination(5, TimeUnit.SECONDS)
-            if( terminated )
-                break
-
-            final delta = System.currentTimeMillis()-t0
-            if( delta > max ) {
-                log.warn "[AWS BATCH] Exiting before jobs reaper thread pool complete -- Some jobs may not be terminated"
-                break
-            }
-
-            final p1 = ((ThreadPoolExecutor)pool)
-            final pending = p1.getTaskCount() - p1.getCompletedTaskCount()
-            // log to console every 10 minutes (120 * 5 sec)
-            if( count % 120 == 0 ) {
-                log.info1 "[AWS BATCH] Waiting jobs reaper to complete (${pending} jobs to be terminated)"
-            }
-            // log to the debug file every minute (12 * 5 sec)
-            else if( count % 12 == 0 ) {
-                log.debug "[AWS BATCH] Waiting jobs reaper to complete (${pending} jobs to be terminated)"
-            }
-            // increment the count
-            count++
-        }
+        final waitMsg = "[AWS BATCH] Waiting jobs reaper to complete (%d jobs to be terminated)"
+        final exitMsg = "[AWS BATCH] Exiting before jobs reaper thread pool complete -- Some jobs may not be terminated"
+        ThreadPoolHelper.await(reaper, Duration.of('60min'), waitMsg, exitMsg, )
     }
 
 }

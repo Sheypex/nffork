@@ -149,7 +149,10 @@ class ProcessDef extends BindableDef implements IterableDef, ChainableDef {
     ProcessConfig getProcessConfig() { processConfig }
 
     ChannelOut getOut() {
-        if(!output) throw new ScriptRuntimeException("Access to '${processName}.out' is undefined since process doesn't declare any output")
+        if( output==null )
+            throw new ScriptRuntimeException("Access to '${processName}.out' is undefined since the process '$processName' has not been invoked before accessing the output attribute")
+        if( output.size()==0 )
+            throw new ScriptRuntimeException("Access to '${processName}.out' is undefined since the process '$processName' doesn't declare any output")
         return output
     }
 
@@ -187,7 +190,7 @@ class ProcessDef extends BindableDef implements IterableDef, ChainableDef {
             // check for feedback channels
             final feedbackChannels = getFeedbackChannels()
             if( feedbackChannels && feedbackChannels.size() != declaredOutputs.size() )
-                throw new ScriptRuntimeException("Process `$processName` inputs and outputs cardinality does not match - Feedback loop is not supported"  )
+                throw new ScriptRuntimeException("Process `$processName` inputs and outputs do not have the same cardinality - Feedback loop is not supported"  )
 
             for(int i=0; i<declaredOutputs.size(); i++ ) {
                 final ch = feedbackChannels ? feedbackChannels[i] : CH.create(singleton)

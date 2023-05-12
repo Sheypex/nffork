@@ -59,6 +59,89 @@ class PodSpecBuilderTest extends Specification {
 
     }
 
+    def 'should create pod spec with args' () {
+
+        when:
+        def spec = new PodSpecBuilder()
+                .withPodName('foo')
+                .withImageName('busybox')
+                .withWorkDir('/some/work/dir')
+                .withArgs(['echo', 'hello'])
+                .build()
+
+        then:
+        spec ==  [ apiVersion: 'v1',
+                   kind: 'Pod',
+                   metadata: [name:'foo', namespace:'default'],
+                   spec: [
+                           restartPolicy:'Never',
+                           containers:[
+                                   [name:'foo',
+                                    image:'busybox',
+                                    args:['echo', 'hello'],
+                                    workingDir:'/some/work/dir'
+                                   ]
+                           ]
+                   ]
+        ]
+
+    }
+
+    def 'should create pod spec with args string' () {
+
+        when:
+        def spec = new PodSpecBuilder()
+                .withPodName('foo')
+                .withImageName('busybox')
+                .withWorkDir('/some/work/dir')
+                .withArgs('echo foo')
+                .build()
+
+        then:
+        spec ==  [ apiVersion: 'v1',
+                   kind: 'Pod',
+                   metadata: [name:'foo', namespace:'default'],
+                   spec: [
+                           restartPolicy:'Never',
+                           containers:[
+                                   [name:'foo',
+                                    image:'busybox',
+                                    args:['/bin/bash', '-c', 'echo foo'],
+                                    workingDir:'/some/work/dir'
+                                   ]
+                           ]
+                   ]
+        ]
+
+    }
+
+    def 'should create pod spec with privileged' () {
+
+        when:
+        def spec = new PodSpecBuilder()
+                .withPodName('foo')
+                .withImageName('busybox')
+                .withCommand('echo foo')
+                .withPrivileged(true)
+                .build()
+
+        then:
+        spec ==  [ apiVersion: 'v1',
+                   kind: 'Pod',
+                   metadata: [name:'foo', namespace:'default'],
+                   spec: [
+                           restartPolicy:'Never',
+                           containers:[
+                                   [name:'foo',
+                                    image:'busybox',
+                                    command:['/bin/bash', '-c', 'echo foo'],
+                                    securityContext: [privileged: true]
+                                   ]
+                           ]
+                   ]
+        ]
+
+    }
 
     def 'should set namespace, labels and annotations' () {
 
@@ -532,34 +615,47 @@ class PodSpecBuilderTest extends Specification {
 
         given:
         def opts = Mock(PodOptions)
-        def builder = new PodSpecBuilder(podName: 'foo', imageName: 'image', command: ['echo'], labels: [runName: 'crazy_john'], annotations: [evict: 'false'])
+        def builder = new PodSpecBuilder([
+            podName: 'foo',
+            imageName: 'image',
+            command: ['echo'],
+            labels: [runName: 'crazy_john'],
+            annotations: [evict: 'false']
+        ])
 
         def affinity = [
             nodeAffinity: [
                 requiredDuringSchedulingIgnoredDuringExecution: [
                     nodeSelectorTerms: [
-                        [key: "foo", operator: "In", values: ["bar", "baz"]]
+                        [key: 'foo', operator: 'In', values: ['bar', 'baz']]
                     ]
                 ]
             ]
         ]
 
+        def tolerations = [[
+            key: 'example-key',
+            operator: 'Exists',
+            effect: 'NoSchedule'
+        ]]
+
         when:
         def spec = builder.withPodOptions(opts).build()
         then:
+        _ * opts.getAffinity() >> affinity
+        _ * opts.getAnnotations() >> [OMEGA:'zzz', SIGMA:'www']
+        _ * opts.getAutomountServiceAccountToken() >> false
+        2 * opts.getEnvVars() >> [ PodEnv.value('HELLO','WORLD') ]
         2 * opts.getImagePullPolicy() >> 'always'
         2 * opts.getImagePullSecret() >> 'myPullSecret'
+        _ * opts.getLabels() >> [ALPHA: 'xxx', GAMMA: 'yyy']
         2 * opts.getVolumeClaims() >> [ new PodVolumeClaim('pvc1', '/work') ]
         2 * opts.getMountConfigMaps() >> [ new PodMountConfig('data', '/home/user') ]
         2 * opts.getMountSecrets() >> [ new PodMountSecret('blah', '/etc/secret.txt') ]
-        2 * opts.getEnvVars() >> [ PodEnv.value('HELLO','WORLD') ]
-        _ * opts.getLabels() >> [ALPHA: 'xxx', GAMMA: 'yyy']
-        _ * opts.getAnnotations() >> [OMEGA:'zzz', SIGMA:'www']
-        _ * opts.getSecurityContext() >> new PodSecurityContext(1000)
         _ * opts.getNodeSelector() >> new PodNodeSelector(gpu:true, queue: 'fast')
-        _ * opts.getAffinity() >> affinity
-        _ * opts.getAutomountServiceAccountToken() >> false
         _ * opts.getPriorityClassName() >> 'high-priority'
+        _ * opts.getSecurityContext() >> new PodSecurityContext(1000)
+        _ * opts.getTolerations() >> tolerations
 
         spec == [
             apiVersion: 'v1',
@@ -571,28 +667,27 @@ class PodSpecBuilderTest extends Specification {
                 annotations: [evict: 'false', OMEGA:'zzz', SIGMA:'www']
             ],
             spec: [
-                restartPolicy:'Never',
-                securityContext: [ runAsUser: 1000 ],
-                imagePullSecrets: [[ name: 'myPullSecret' ]],
-                nodeSelector: [gpu: 'true', queue: 'fast'],
                 affinity: affinity,
                 automountServiceAccountToken: false,
+                imagePullSecrets: [[ name: 'myPullSecret' ]],
+                nodeSelector: [gpu: 'true', queue: 'fast'],
                 priorityClassName: 'high-priority',
-                
-                containers:[
-                    [
-                        name:'foo',
-                        image:'image',
-                        imagePullPolicy: 'always',
-                        command:['echo'],
-                        env:[[name:'HELLO', value:'WORLD']],
-                        volumeMounts:[
-                            [name:'vol-1', mountPath:'/work'],
-                            [name:'vol-2', mountPath:'/home/user'],
-                            [name:'vol-3', mountPath:'/etc/secret.txt']
-                        ],
-                    ]
-                ],
+                restartPolicy:'Never',
+                securityContext: [ runAsUser: 1000 ],
+                tolerations: tolerations,
+
+                containers:[[
+                    name:'foo',
+                    image:'image',
+                    imagePullPolicy: 'always',
+                    command:['echo'],
+                    env:[[name:'HELLO', value:'WORLD']],
+                    volumeMounts:[
+                        [name:'vol-1', mountPath:'/work'],
+                        [name:'vol-2', mountPath:'/home/user'],
+                        [name:'vol-3', mountPath:'/etc/secret.txt']
+                    ],
+                ]],
                 volumes:[
                     [name:'vol-1', persistentVolumeClaim:[claimName:'pvc1']],
                     [name:'vol-2', configMap:[name:'data']],
@@ -665,12 +760,12 @@ class PodSpecBuilderTest extends Specification {
 
 
     @Unroll
-    def 'should sanitize k8s label: #label' () {
+    def 'should sanitize k8s label value: #label' () {
         given:
         def builder = new PodSpecBuilder()
 
         expect:
-        builder.sanitize0('foo',label, 'label') == str
+        builder.sanitizeValue(label, PodSpecBuilder.MetaType.LABEL, PodSpecBuilder.SegmentType.VALUE) == str
 
         where:
         label           | str
@@ -689,4 +784,251 @@ class PodSpecBuilderTest extends Specification {
         '123hello'      | '123hello'
         'x2345678901234567890123456789012345678901234567890123456789012345' | 'x23456789012345678901234567890123456789012345678901234567890123'
     }
+
+    @Unroll
+    def 'should sanitize k8s label key: #label_key' () {
+        given:
+        def builder = new PodSpecBuilder()
+
+        expect:
+        builder.sanitizeKey(label_key, PodSpecBuilder.MetaType.LABEL) == str
+
+        where:
+        label_key               | str
+        'foo'                   | 'foo'
+        'key 1'                 | 'key_1'
+        'foo.bar/key 2'         | 'foo.bar/key_2'
+        'foo.bar/'              | 'foo.bar'
+        '/foo.bar'              | 'foo.bar'
+        'x2345678901234567890123456789012345678901234567890123456789012345' | 'x23456789012345678901234567890123456789012345678901234567890123'
+        'x23456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345/key 2' | 'x234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123/key_2'
+        'foo.bar/x2345678901234567890123456789012345678901234567890123456789012345' | 'foo.bar/x23456789012345678901234567890123456789012345678901234567890123'
+    }
+
+    @Unroll
+    def 'should report error if sanitizing k8s label with more than one slash character: #label_key' () {
+        given:
+        def builder = new PodSpecBuilder()
+
+        when:
+        builder.sanitizeKey(label_key, PodSpecBuilder.MetaType.LABEL)
+
+        then:
+        def error = thrown(expectedException)
+        error.message == expectedMessage
+
+        where:
+        label_key               | expectedException         | expectedMessage
+        'foo.bar/key 2/key 3'   | IllegalArgumentException  | "Invalid key in pod label -- Key can only contain exactly one '/' character"
+        'foo.bar/foo/bar/bar'   | IllegalArgumentException  | "Invalid key in pod label -- Key can only contain exactly one '/' character"
+    }
+
+    @Unroll
+    def 'should sanitize k8s label map' () {
+        given:
+        def builder = new PodSpecBuilder()
+
+        expect:
+        builder.sanitize(KEY_VALUE, PodSpecBuilder.MetaType.LABEL) == EXPECTED
+
+        where:
+        KEY_VALUE                   | EXPECTED
+        [foo:'bar']                 | [foo:'bar']
+        ['key 1':'value 2']         | [key_1:'value_2']
+        ['foo.bar/key 2':'value 3'] | ['foo.bar/key_2':'value_3']
+    }
+
+    @Unroll
+    def 'should sanitize k8s annotation key' () {
+        given:
+        def builder = new PodSpecBuilder()
+
+        expect:
+        builder.sanitize(KEY_VALUE, PodSpecBuilder.MetaType.ANNOTATION) == EXPECTED
+
+        where:
+        KEY_VALUE                           | EXPECTED
+        [foo:'bar']                         | [foo:'bar']
+        ['key 1':'value 2']                 | [key_1:'value 2']
+        ['foo.bar/key 2':'value 3']         | ['foo.bar/key_2':'value 3']
+        ['x2345678901234567890123456789012345678901234567890123456789012345':'value 5'] | ['x23456789012345678901234567890123456789012345678901234567890123':'value 5']
+        ['x23456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345/key 4':'value 6'] | ['x234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123/key_4':'value 6']
+        ['foo.bar/x2345678901234567890123456789012345678901234567890123456789012345':'value 7'] | ['foo.bar/x23456789012345678901234567890123456789012345678901234567890123':'value 7']
+    }
+
+    @Unroll
+    def 'should report error if sanitizing k8s annotation key with more than one slash character: #annotation_key' () {
+        given:
+        def builder = new PodSpecBuilder()
+
+        when:
+        builder.sanitizeKey(annotation_key, PodSpecBuilder.MetaType.ANNOTATION)
+
+        then:
+        def error = thrown(expectedException)
+        error.message == expectedMessage
+
+        where:
+        annotation_key          | expectedException         | expectedMessage
+        'foo.bar/key 2/key 3'   | IllegalArgumentException  | "Invalid key in pod annotation -- Key can only contain exactly one '/' character"
+        'foo.bar/foo/bar/bar'   | IllegalArgumentException  | "Invalid key in pod annotation -- Key can only contain exactly one '/' character"
+    }
+
+    @Unroll
+    def 'should not sanitize k8s annotation value' () {
+        given:
+        def builder = new PodSpecBuilder()
+
+        expect:
+        builder.sanitize(ANNOTATION, PodSpecBuilder.MetaType.ANNOTATION) == EXPECTED
+
+        where:
+        ANNOTATION                      | EXPECTED
+        ['foo':'value 1']               | ['foo':'value 1']
+        ['foo':'foo.bar / *']           | ['foo':'foo.bar / *']
+        ['foo':'value 2 \n value 3']    | ['foo':'value 2 \n value 3']
+        ['foo':'value 3']               | ['foo':'value 3']
+        ['foo':'x2345678901234567890123456789012345678901234567890123456789012345'] | ['foo':'x2345678901234567890123456789012345678901234567890123456789012345']
+    }
+
+    def 'should create job spec' () {
+
+        when:
+        def spec = new PodSpecBuilder()
+                .withPodName('foo')
+                .withImageName('busybox')
+                .withCommand(['echo', 'hello'])
+                .buildAsJob()
+
+        then:
+        spec ==  [ apiVersion: 'batch/v1',
+                    kind: 'Job',
+                    metadata: [name:'foo', namespace:'default'],
+                    spec: [
+                            backoffLimit: 0,
+                            template: [
+                                    spec: [
+                                            restartPolicy:'Never',
+                                            containers:[
+                                                    [name:'foo',
+                                                     image:'busybox',
+                                                     command:['echo', 'hello'],
+                                                    ]
+                                            ]
+                                    ]
+                            ]
+                    ]
+        ]
+    }
+
+    def 'should set labels and annotations for job' () {
+
+        when:
+        def spec = new PodSpecBuilder()
+                .withPodName('foo')
+                .withImageName('busybox')
+                .withCommand(['echo', 'hello'])
+                .withLabel('app','someApp')
+                .withLabel('runName','someName')
+                .withLabel('version','3.8.1')
+                .withAnnotation("anno1", "val1")
+                .withAnnotations([anno2: "val2", anno3: "val3"])
+                .buildAsJob()
+
+        then:
+        spec ==  [ apiVersion: 'batch/v1',
+                   kind: 'Job',
+                   metadata: [
+                           name:'foo',
+                           namespace:'default',
+                           labels: [
+                                   app: 'someApp',
+                                   runName: 'someName',
+                                   version: '3.8.1'
+                           ],
+                           annotations: [
+                                   anno1: "val1",
+                                   anno2: "val2",
+                                   anno3: "val3"
+                           ]
+                   ],
+                   spec: [
+                           backoffLimit: 0,
+                           template: [
+                                   spec: [
+                                           restartPolicy:'Never',
+                                           containers:[
+                                                   [name:'foo',
+                                                    image:'busybox',
+                                                    command:['echo', 'hello'],
+                                                   ]
+                                           ]
+                                   ]
+                           ]
+                   ]
+        ]
+    }
+
+    def 'should create pod spec with activeDeadlineSeconds' () {
+
+        when:
+        def spec = new PodSpecBuilder()
+                .withPodName('foo')
+                .withImageName('busybox')
+                .withWorkDir('/some/work/dir')
+                .withCommand(['echo', 'hello'])
+                .withActiveDeadline(100)
+                .build()
+
+        then:
+        spec ==  [ apiVersion: 'v1',
+                   kind: 'Pod',
+                   metadata: [name:'foo', namespace:'default'],
+                   spec: [
+                           restartPolicy:'Never',
+                           activeDeadlineSeconds: 100,
+                           containers:[
+                                   [name:'foo',
+                                    image:'busybox',
+                                    command:['echo', 'hello'],
+                                    workingDir:'/some/work/dir'
+                                   ]
+                           ]
+                   ]
+        ]
+
+    }
+
+    def 'should create job spec with activeDeadlineSeconds' () {
+
+        when:
+        def spec = new PodSpecBuilder()
+                .withPodName('foo')
+                .withImageName('busybox')
+                .withCommand(['echo', 'hello'])
+                .withActiveDeadline(100)
+                .buildAsJob()
+
+        then:
+        spec ==  [ apiVersion: 'batch/v1',
+                   kind: 'Job',
+                   metadata: [name:'foo', namespace:'default'],
+                   spec: [
+                           backoffLimit: 0,
+                           template: [
+                                   spec: [
+                                           restartPolicy:'Never',
+                                           activeDeadlineSeconds: 100,
+                                           containers:[
+                                                   [name:'foo',
+                                                    image:'busybox',
+                                                    command:['echo', 'hello'],
+                                                   ]
+                                           ]
+                                   ]
+                           ]
+                   ]
+        ]
+    }
+
 }

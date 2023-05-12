@@ -1,4 +1,4 @@
-# Nextflow Documentation 
+# Nextflow Documentation
 
 Nextflow documentation is written using [Sphinx](http://www.sphinx-doc.org/) which 
 uses the [reStructuredText](https://en.wikipedia.org/wiki/ReStructuredText) file format.
@@ -12,7 +12,7 @@ Once you have edited the documentation files verify the your changes are correct
 using the command below to generate the HTML files:
 
 ```
-make html
+make clean html
 ```
 
 
@@ -34,14 +34,17 @@ or
 conda install sphinx==3.5.4
 ```
 
-### Theme 
+### Theme
 
-Docs uses the [sphinx_rtd_theme](https://github.com/readthedocs/sphinx_rtd_theme) theme. 
+Nextflow documentation uses the [Read The Docs theme for Sphinx](https://github.com/readthedocs/sphinx_rtd_theme) theme.
 
-To update it, clone the above repo, then copy `sphinx_rtd_theme/sphinx_rtd_theme` directory 
-into `docs/_themes`.  
+In order to build the document install the Read The Docs theme using the command:
+
+```
+pip install sphinx_rtd_theme
+```
 
 ### License
 
-Nextflow documentation is distributed under 
+Nextflow documentation is distributed under
 [Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0) license](https://creativecommons.org/licenses/by-sa/4.0/).

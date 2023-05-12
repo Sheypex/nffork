@@ -917,7 +917,7 @@ class NextflowDSLImpl implements ASTTransformation {
                     }
                 }
             }
-            else if( (varX=isVariableX(stm.expression)) && (varX.name=='stdin' || varX.name=='stdout') && NF.isDsl2Final() ) {
+            else if( (varX=isVariableX(stm.expression)) && (varX.name=='stdin' || varX.name=='stdout') && NF.isDsl2() ) {
                 final name = varX.name=='stdin' ? '_in_stdin' : '_out_stdout'
                 final call = new MethodCallExpression( new VariableExpression('this'), name, new ArgumentListExpression()  )
                 // remove replace the old one with the new one
@@ -1254,7 +1254,7 @@ class NextflowDSLImpl implements ASTTransformation {
                 unit.addError( new SyntaxException("Identifier `$name` is reserved for internal use", node.lineNumber, node.columnNumber+8) )
                 return true
             }
-            if( name in functionNames || name in workflowNames || name in processNames ) {
+            if( name in workflowNames || name in processNames ) {
                 unit.addError( new SyntaxException("Identifier `$name` is already used by another definition", node.lineNumber, node.columnNumber+8) )
                 return true
             }

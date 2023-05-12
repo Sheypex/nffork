@@ -62,8 +62,8 @@ import groovy.transform.CompileStatic
 import groovy.transform.Memoized
 import groovy.util.logging.Slf4j
 import nextflow.Global
-import nextflow.Session
 import nextflow.cloud.azure.config.AzConfig
+import nextflow.cloud.azure.config.AzFileShareOpts
 import nextflow.cloud.azure.config.AzPoolOpts
 import nextflow.cloud.azure.config.CopyToolInstallMode
 import nextflow.cloud.azure.nio.AzPath
@@ -98,6 +98,10 @@ class AzBatchService implements Closeable {
     AzBatchService(AzBatchExecutor executor) {
         assert executor
         this.config = executor.config
+    }
+
+    protected AzVmPoolSpec getPoolSpec(String poolId) {
+        return allPools.get(poolId)
     }
 
     @Memoized
@@ -138,7 +142,7 @@ class AzBatchService implements Closeable {
     }
 
     AzVmType guessBestVm(String location, int cpus, MemoryUnit mem, String family) {
-        log.debug "[AZURE BATCH] guess best VM given location=$location; cpus=$cpus; mem=$mem; family=$family"
+        log.debug "[AZURE BATCH] guessing best VM given location=$location; cpus=$cpus; mem=$mem; family=$family"
         if( !family.contains('*') && !family.contains('?') )
             return findBestVm(location, cpus, mem, family)
 
@@ -262,8 +266,7 @@ class AzBatchService implements Closeable {
 
         final cred = new BatchSharedKeyCredentials(config.batch().endpoint, config.batch().accountName, config.batch().accountKey)
         final client = BatchClient.open(cred)
-        final sess = Global.session as Session
-        sess.onShutdown { client.protocolLayer().restClient().close() }
+        Global.onCleanup((it)->client.protocolLayer().restClient().close())
         return client
     }
 
@@ -304,9 +307,7 @@ class AzBatchService implements Closeable {
         final jobId = makeJobId(task)
         final poolInfo = new PoolInformation()
             .withPoolId(poolId)
-        client
-            .jobOperations()
-            .createJob(jobId, poolInfo)
+        apply(() -> client .jobOperations() .createJob(jobId, poolInfo))
         // add to the map
         allJobIds[mapKey] = jobId
         return jobId
@@ -326,7 +327,7 @@ class AzBatchService implements Closeable {
         return key.size()>MAX_LEN ? key.substring(0,MAX_LEN) : key
     }
 
-    AzTaskKey runTask(String poolId, String jobId, TaskRun task) {
+    protected TaskAddParameter createTask(String poolId, String jobId, TaskRun task) {
         assert poolId, 'Missing Azure Batch poolId argument'
         assert jobId, 'Missing Azure Batch jobId argument'
         assert task, 'Missing Azure Batch task argument'
@@ -335,31 +336,33 @@ class AzBatchService implements Closeable {
         if( !sas )
             throw new IllegalArgumentException("Missing Azure Blob storage SAS token")
 
-        final container = task.config.container as String
+        final container = task.getContainer()
         if( !container )
             throw new IllegalArgumentException("Missing container image for process: $task.name")
         final taskId = "nf-${task.hash.toString()}"
         // get the pool config
-        final pool = allPools.get(poolId)
+        final pool = getPoolSpec(poolId)
         if( !pool )
             throw new IllegalStateException("Missing Azure Batch pool spec with id: $poolId")
-        // get the file share root
-        final mountPath = pool.opts.getFileShareRootPath()
-	    if ( !mountPath )
-		    throw new IllegalArgumentException("Missing FileShareRootPath for pool: $poolId")
-        def volumes = ''
-        config.storage().getFileShares().each {
-            volumes += " -v ${mountPath}/${it.key}:${it.value.mountPath}:rw"
-        }
+        // container settings
+        // mount host certificates otherwise `azcopy` fails
+        def opts = "-v /etc/ssl/certs:/etc/ssl/certs:ro -v /etc/pki:/etc/pki:ro "
+        // shared volume mounts
+        final shares = getShareVolumeMounts(pool)
+        if( shares )
+            opts += "${shares.join(' ')} "
+        // custom container settings
+        if( task.config.getContainerOptions() )
+            opts += "${task.config.getContainerOptions()} "
+        // config overall container settings
         final containerOpts = new TaskContainerSettings()
                 .withImageName(container)
-                // mount host certificates otherwise `azcopy` fails
-                .withContainerRunOptions("-v /etc/ssl/certs:/etc/ssl/certs:ro -v /etc/pki:/etc/pki:ro ${volumes} ")
+                .withContainerRunOptions(opts)
 
         final slots = computeSlots(task, pool)
         log.trace "[AZURE BATCH] Submitting task: $taskId, cpus=${task.config.getCpus()}, mem=${task.config.getMemory()?:'-'}, slots: $slots"
 
-        final taskToAdd = new TaskAddParameter()
+        return new TaskAddParameter()
                 .withId(taskId)
                 .withUserIdentity(userIdentity(pool.opts.privileged, pool.opts.runAs))
                 .withContainerSettings(containerOpts)
@@ -367,8 +370,30 @@ class AzBatchService implements Closeable {
                 .withResourceFiles(resourceFileUrls(task,sas))
                 .withOutputFiles(outputFileUrls(task, sas))
                 .withRequiredSlots(slots)
+    }
+
+    AzTaskKey runTask(String poolId, String jobId, TaskRun task) {
+        final taskToAdd = createTask(poolId, jobId, task)
         apply(() -> client.taskOperations().createTask(jobId, taskToAdd))
-        return new AzTaskKey(jobId, taskId)
+        return new AzTaskKey(jobId, taskToAdd.id())
+    }
+
+    protected List<String> getShareVolumeMounts(AzVmPoolSpec spec) {
+        assert spec!=null
+        final shares = config.storage().getFileShares()
+        if( !shares )
+            return Collections.<String>emptyList()
+
+        // get the file share root
+        final mountPath = spec.opts?.getFileShareRootPath()
+        if ( !mountPath )
+            throw new IllegalArgumentException("Missing FileShareRootPath for pool: ${spec.poolId}")
+
+        final result = new ArrayList(shares.size())
+        for( Map.Entry<String, AzFileShareOpts> it : shares ) {
+            result.add("-v ${mountPath}/${it.key}:${it.value.mountPath}:rw")
+        }
+        return result
     }
 
     protected List<ResourceFile> resourceFileUrls(TaskRun task, String sas) {
@@ -437,7 +462,7 @@ class AzBatchService implements Closeable {
                 return it
         }
 
-        throw new IllegalStateException("Cannot find a matching VM image with publister=$opts.publisher; offer=$opts.offer; OS type=$opts.osType; verification type=$opts.verification")
+        throw new IllegalStateException("Cannot find a matching VM image with publisher=$opts.publisher; offer=$opts.offer; OS type=$opts.osType; verification type=$opts.verification")
     }
 
     protected AzVmPoolSpec specFromPoolConfig(String poolId) {
@@ -446,12 +471,14 @@ class AzBatchService implements Closeable {
         def name = opts ? opts.vmType : getPool(poolId)?.vmSize()
         if( !name )
             throw new IllegalArgumentException("Cannot find Azure Batch config for pool: $poolId")
+        if( !opts )
+            opts = new AzPoolOpts(vmType: name)
 
         def type = getVmType(config.batch().location, name)
         if( !type )
             throw new IllegalArgumentException("Cannot find Azure Batch VM type '$poolId' - Check pool definition $poolId in the Nextflow config file")
 
-        new AzVmPoolSpec(poolId: poolId, vmType: type, opts: opts)
+        return new AzVmPoolSpec(poolId: poolId, vmType: type, opts: opts)
     }
 
     protected AzVmPoolSpec specFromAutoPool(TaskRun task) {
@@ -469,7 +496,7 @@ class AzBatchService implements Closeable {
 
         final vmType = guessBestVm(loc, cpus, mem, type)
         if( !vmType ) {
-            def msg = "Cannot find a VM for task '${task.name}' matching this requirements: type=$type, cpus=${cpus}, mem=${mem?:'-'}, location=${loc}"
+            def msg = "Cannot find a VM for task '${task.name}' matching these requirements: type=$type, cpus=${cpus}, mem=${mem?:'-'}, location=${loc}"
             throw new IllegalArgumentException(msg)
         }
 
@@ -492,7 +519,7 @@ class AzBatchService implements Closeable {
 
     protected void checkPoolId(String poolId) {
         if( !poolId.matches(/^[\w\-]+$/) )
-            throw new IllegalArgumentException("Invalid Azure Batch pool Id '$poolId' - It can only contains alphanumeric, hyphen and undershore characters")
+            throw new IllegalArgumentException("Invalid Azure Batch pool Id '$poolId' - It can only contain alphanumeric, hyphen and underscore characters")
     }
 
     protected AzVmPoolSpec specForTask(TaskRun task) {
@@ -501,7 +528,7 @@ class AzBatchService implements Closeable {
             // the process queue is used as poolId
             poolId = task.config.queue as String
             if( !poolId ) {
-                throw new IllegalArgumentException("No Azure Batch pool was specified for task '${task.name}' - Either specify the pool name using the 'queue' diretive or enable the 'autoPoolMode' option")
+                throw new IllegalArgumentException("No Azure Batch pool was specified for task '${task.name}' - Either specify the pool name using the 'queue' directive or enable the 'autoPoolMode' option")
             }
             // sanity check
             checkPoolId(poolId)
@@ -531,7 +558,7 @@ class AzBatchService implements Closeable {
                 createPool(spec)
             }
             else {
-                throw new IllegalArgumentException("Can't find Azure Batch pool '$spec.poolId' - Make sure it exists or enablethe use `allowPoolCreation=true` in the nextflow config file")
+                throw new IllegalArgumentException("Can't find Azure Batch pool '$spec.poolId' - Make sure it exists or set `allowPoolCreation=true` in the nextflow config file")
             }
         }
         else {
@@ -762,6 +789,8 @@ class AzBatchService implements Closeable {
                 .build()
     }
 
+    private static List<String> RETRY_CODES = ['TooManyRequests', 'OperationTimedOut']
+
     /**
      * Carry out the invocation of the specified action using a retry policy
      * when {@code TooManyRequests} Azure Batch error is returned
@@ -770,7 +799,7 @@ class AzBatchService implements Closeable {
      * @return The result of the supplied action
      */
     protected <T> T apply(CheckedSupplier<T> action) {
-        final cond = (e -> e instanceof BatchErrorException && e.body().code() == 'TooManyRequests')  as Predicate<? extends Throwable>
+        final cond = (e -> e instanceof BatchErrorException && e.body().code() in RETRY_CODES)  as Predicate<? extends Throwable>
         final policy = retryPolicy(cond)
         return Failsafe.with(policy).get(action)
     }

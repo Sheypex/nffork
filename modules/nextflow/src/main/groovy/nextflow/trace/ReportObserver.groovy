@@ -17,7 +17,7 @@
 
 package nextflow.trace
 
-import java.nio.charset.Charset
+
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -42,7 +42,7 @@ import nextflow.script.WorkflowMetadata
 @CompileStatic
 class ReportObserver implements TraceObserver {
 
-    static final public String DEF_FILE_NAME = 'report.html'
+    static final public String DEF_FILE_NAME = "report-${TraceHelper.launchTimestampFmt()}.html"
 
     static final public int DEF_MAX_TASKS = 10_000
 
@@ -137,7 +137,7 @@ class ReportObserver implements TraceObserver {
      */
     @Override
     void onFlowComplete() {
-        log.debug "Flow completing -- rendering html report"
+        log.debug "Workflow completed -- rendering execution report"
         try {
             renderHtml()
         }
@@ -281,13 +281,7 @@ class ReportObserver implements TraceObserver {
         if( parent )
             Files.createDirectories(parent)
 
-        if( overwrite )
-            Files.deleteIfExists(reportFile)
-        else
-            // roll the any trace files that may exist
-            reportFile.rollFile()
-
-        def writer = Files.newBufferedWriter(reportFile, Charset.defaultCharset())
+        def writer = TraceHelper.newFileWriter(reportFile, overwrite, 'Report')
         writer.withWriter { w -> w << html_output }
         writer.close()
     }

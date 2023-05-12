@@ -58,7 +58,7 @@ class FileInParam extends BaseInParam implements PathQualifier {
 
         // the ability to pass a closure as file name has been replaced by
         // lazy gstring -- this should be deprecated
-        if( obj instanceof Closure && !NF.dsl2Final ) {
+        if( obj instanceof Closure && !NF.dsl2 ) {
             filePattern = obj
             return this
         }
@@ -83,7 +83,7 @@ class FileInParam extends BaseInParam implements PathQualifier {
     @Override
     BaseInParam bind( obj ) {
         if( pathQualifier && obj instanceof Map )
-            throw new IllegalArgumentException("Input `path` does not allow such argument: ${obj.entrySet().collect{"${it.key}:${it.value}"}.join(',')}")
+            throw new IllegalArgumentException("Input `path` does not allow such arguments: ${obj.entrySet().collect{"${it.key}:${it.value}"}.join(',')}")
         super.bind(obj)
         return this
     }

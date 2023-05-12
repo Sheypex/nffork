@@ -22,6 +22,7 @@ import groovy.transform.Memoized
 import groovy.transform.PackageScope
 import groovy.util.logging.Slf4j
 import nextflow.executor.Executor
+import nextflow.executor.fusion.FusionHelper
 import nextflow.k8s.client.K8sClient
 import nextflow.processor.TaskHandler
 import nextflow.processor.TaskMonitor
@@ -63,9 +64,10 @@ class K8sExecutor extends Executor {
     @Override
     protected void register() {
         super.register()
-        final config = k8sConfig.getClient()
-        client = new K8sClient(config)
-        log.debug "[K8s] API client config=$config"
+        final k8sConfig = getK8sConfig()
+        final clientConfig = k8sConfig.getClient()
+        this.client = new K8sClient(clientConfig)
+        log.debug "[K8s] config=$k8sConfig; API client config=$clientConfig"
     }
 
     /**
@@ -95,5 +97,10 @@ class K8sExecutor extends Executor {
         assert task.workDir
         log.trace "[K8s] launching process > ${task.name} -- work folder: ${task.workDirStr}"
         new K8sTaskHandler(task,this)
+    }
+
+    @Override
+    boolean isFusionEnabled() {
+        return FusionHelper.isFusionEnabled(session)
     }
 }

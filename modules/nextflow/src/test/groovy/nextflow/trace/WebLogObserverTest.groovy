@@ -77,11 +77,11 @@ class WebLogObserverTest extends Specification {
         given:
         def observer = Spy(WebLogObserver)
         def CLIENT = Mock(SimpleHttpClient)
-        observer.endpoint = 'http://foo.com'
-        observer.httpClient = CLIENT
-        observer.runName = 'foo'
-        observer.runId = 'xyz'
-        observer.generator = new JsonGenerator.Options().build()
+        observer.@endpoint = 'http://foo.com'
+        observer.@httpClient = CLIENT
+        observer.@runName = 'foo'
+        observer.@runId = 'xyz'
+        observer.@generator = new JsonGenerator.Options().build()
         def TRACE = new TraceRecord([hash: '4a4a4a', process: 'bar'])
 
         when:
@@ -116,6 +116,6 @@ class WebLogObserverTest extends Specification {
         observer.checkUrl('ftp://localhost')
         then:
         def e = thrown(IllegalArgumentException)
-        e.message == 'Only http or https are supported protocols -- The given URL was: ftp://localhost'
+        e.message == 'Only http and https are supported -- The given URL was: ftp://localhost'
     }
 }

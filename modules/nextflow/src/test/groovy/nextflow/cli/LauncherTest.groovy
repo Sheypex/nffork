@@ -172,15 +172,15 @@ class LauncherTest extends Specification {
         launcher.normalizeArgs('-x', '1', 'script.nf', '--long', 'v1', '--more', 'v2', '--flag') == ['-x','1','script.nf','--long=v1','--more=v2','--flag=true']
 
         launcher.normalizeArgs('-x', '1', '-process.alpha','2', '3') == ['-x', '1', '-process.alpha=2', '3']
-        launcher.normalizeArgs('-x', '1', '-process.echo') == ['-x', '1', '-process.echo=true']
-        launcher.normalizeArgs('-x', '1', '-process.echo', '-with-docker', 'ubuntu' ) == ['-x', '1', '-process.echo=true', '-with-docker','ubuntu']
-        launcher.normalizeArgs('-x', '1', '-process.echo', '-123') == ['-x', '1', '-process.echo=-123' ]
+        launcher.normalizeArgs('-x', '1', '-process.debug') == ['-x', '1', '-process.debug=true']
+        launcher.normalizeArgs('-x', '1', '-process.debug', '-with-docker', 'ubuntu' ) == ['-x', '1', '-process.debug=true', '-with-docker','ubuntu']
+        launcher.normalizeArgs('-x', '1', '-process.debug', '-123') == ['-x', '1', '-process.debug=-123' ]
 
         launcher.normalizeArgs('-x', '1', '-cluster.alpha','2', '3') == ['-x', '1', '-cluster.alpha=2', '3']
-        launcher.normalizeArgs('-x', '1', '-cluster.echo') == ['-x', '1', '-cluster.echo=true']
+        launcher.normalizeArgs('-x', '1', '-cluster.debug') == ['-x', '1', '-cluster.debug=true']
 
         launcher.normalizeArgs('-x', '1', '-executor.alpha','2', '3') == ['-x', '1', '-executor.alpha=2', '3']
-        launcher.normalizeArgs('-x', '1', '-executor.echo') == ['-x', '1', '-executor.echo=true']
+        launcher.normalizeArgs('-x', '1', '-executor.debug') == ['-x', '1', '-executor.debug=true']
 
         launcher.normalizeArgs('-x', '1', '-that.alpha','2', '3') == ['-x', '1', '-that.alpha','2', '3']
 
@@ -191,6 +191,10 @@ class LauncherTest extends Specification {
         launcher.normalizeArgs('run','-with-tower') == ['run', '-with-tower', '-']
         launcher.normalizeArgs('run','-with-tower', '-x') == ['run', '-with-tower', '-', '-x']
         launcher.normalizeArgs('run','-with-tower', 'foo.com') == ['run', '-with-tower','foo.com']
+
+        launcher.normalizeArgs('run','-with-wave') == ['run', '-with-wave', '-']
+        launcher.normalizeArgs('run','-with-wave', '-x') == ['run', '-with-wave', '-', '-x']
+        launcher.normalizeArgs('run','-with-wave', 'foo.com') == ['run', '-with-wave','foo.com']
 
         launcher.normalizeArgs('run','-with-trace') == ['run', '-with-trace','-']
         launcher.normalizeArgs('run','-with-trace', '-x') == ['run', '-with-trace','-', '-x']
@@ -223,6 +227,10 @@ class LauncherTest extends Specification {
         launcher.normalizeArgs('run','-with-charliecloud') == ['run', '-with-charliecloud','-']
         launcher.normalizeArgs('run','-with-charliecloud', '-x') == ['run', '-with-charliecloud','-', '-x']
         launcher.normalizeArgs('run','-with-charliecloud', 'busybox') == ['run', '-with-charliecloud','busybox']
+
+        launcher.normalizeArgs('run','-with-conda') == ['run', '-with-conda','-']
+        launcher.normalizeArgs('run','-with-conda', '-x') == ['run', '-with-conda','-', '-x']
+        launcher.normalizeArgs('run','-with-conda', 'busybox') == ['run', '-with-conda','busybox']
 
         launcher.normalizeArgs('run','-dump-channels') == ['run', '-dump-channels','*']
         launcher.normalizeArgs('run','-dump-channels', '-x') == ['run', '-dump-channels','*', '-x']

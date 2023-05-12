@@ -73,4 +73,8 @@ class GoogleLifeSciencesSubmitRequest {
     String serviceAccountEmail
 
     boolean keepAliveOnFailure
+
+    Map<String, String> resourceLabels = [:]
+    
+    String timeout
 }

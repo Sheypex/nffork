@@ -17,6 +17,10 @@
 
 package nextflow.script
 
+import nextflow.exception.ScriptCompilationException
+import nextflow.plugin.extension.PluginExtensionProvider
+import nextflow.plugin.Plugins
+
 import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 
@@ -39,6 +43,8 @@ import nextflow.exception.IllegalModulePath
 @EqualsAndHashCode
 class IncludeDef {
 
+    static final private String PLUGIN_PREFIX = 'plugin/'
+
     @Canonical
     static class Module {
         String name
@@ -54,7 +60,7 @@ class IncludeDef {
     @Deprecated
     IncludeDef( String module ) {
         final msg = "Anonymous module inclusion is deprecated -- Replace `include '${module}'` with `include { MODULE_NAME } from '${module}'`"
-        if( NF.isDsl2Final() )
+        if( NF.isDsl2() )
             throw new DeprecationException(msg)
         log.warn msg
         this.path = module
@@ -65,7 +71,7 @@ class IncludeDef {
     IncludeDef(TokenVar token, String alias=null) {
         def component = token.name; if(alias) component += " as $alias"
         def msg = "Unwrapped module inclusion is deprecated -- Replace `include $component from './MODULE/PATH'` with `include { $component } from './MODULE/PATH'`"
-        if( NF.isDsl2Final() )
+        if( NF.isDsl2() )
             throw new DeprecationException(msg)
         log.warn msg
 
@@ -108,6 +114,10 @@ class IncludeDef {
      */
     void load0(ScriptBinding.ParamsMap ownerParams) {
         checkValidPath(path)
+        if( path.toString().startsWith(PLUGIN_PREFIX) ) {
+            loadPlugin0(path.toString().substring(PLUGIN_PREFIX.length()))
+            return
+        }
         // -- resolve the concrete against the current script
         final moduleFile = realModulePath(path)
         // -- load the module
@@ -165,9 +175,16 @@ class IncludeDef {
 
         // check if exists a file with `.nf` extension
         if( !module.name.endsWith('.nf') ) {
-            def extendedName = module.resolveSibling( "${module.name}.nf" )
+            final extendedName = module.resolveSibling( "${module.name}.nf" )
             if( extendedName.exists() )
                 return extendedName
+        }
+        if( module.isDirectory() ) {
+            final target = module.resolve('main.nf')
+            if( target.exists() ) {
+                return target
+            }
+            throw new ScriptCompilationException("Include '$include' does not provide any module script -- the following path should contain a 'main.nf' script: '$module'" )
         }
 
         // check the file exists
@@ -186,10 +203,23 @@ class IncludeDef {
             throw new IllegalModulePath("Remote modules are not allowed -- Offending module: ${path.toUriString()}")
 
         final str = path.toString()
-        if( !str.startsWith('/') && !str.startsWith('./') && !str.startsWith('../') )
+        if( !str.startsWith('/') && !str.startsWith('./') && !str.startsWith('../') && !str.startsWith('plugin/') )
             throw new IllegalModulePath("Module path must start with / or ./ prefix -- Offending module: $str")
 
     }
 
+    @PackageScope
+    void loadPlugin0(String pluginId){
+        if( pluginId.startsWith('/') )
+            throw new IllegalArgumentException("Plugin Id in the 'include' declaration cannot start with a slash character - offending value: '$pluginId'")
+        if( pluginId.contains('@') )
+            throw new IllegalArgumentException("Plugin Id in the 'include' declaration cannot contain a specific version requirement - offending value: '$pluginId'")
+        Plugins.startIfMissing(pluginId)
+        if( !Plugins.isStarted(pluginId) )
+            throw new IllegalArgumentException("Unable start plugin with Id '$pluginId'")
+        final Map<String,String> declaredNames = this.modules.collectEntries {[it.name, it.alias ?: it.name]}
+        log.debug "Loading included plugin extensions with names: $declaredNames; plugin Id: $pluginId"
+        PluginExtensionProvider.INSTANCE().loadPluginExtensionMethods(pluginId, declaredNames)
+    }
 
 }

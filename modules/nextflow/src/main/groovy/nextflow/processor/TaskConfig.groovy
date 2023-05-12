@@ -131,6 +131,10 @@ class TaskConfig extends LazyMap implements Cloneable {
         return get(name)
     }
 
+    final getRawValue(String key) {
+        return target.get(key)
+    }
+
     def get( String key ) {
         if( cache.containsKey(key) )
             return cache.get(key)
@@ -182,9 +186,31 @@ class TaskConfig extends LazyMap implements Cloneable {
         return false
     }
 
-    boolean getEcho() {
-        def value = get('echo')
-        toBool(value)
+    String getBeforeScript() {
+        return get('beforeScript')
+    }
+
+    String getAfterScript() {
+        return get('afterScript')
+    }
+
+    def getCleanup() {
+        return get('cleanup')
+    }
+
+    String getStageInMode() {
+        return get('stageInMode')
+    }
+
+    String getStageOutMode() {
+        return get('stageOutMode')
+    }
+
+    boolean getDebug() {
+        // check both `debug` and `echo` for backward
+        // compatibility until `echo` is not removed
+        def value = get('debug') || get('echo')
+        return toBool(value)
     }
 
     private static boolean toBool( value )  {
@@ -288,7 +314,7 @@ class TaskConfig extends LazyMap implements Cloneable {
         def value = get('module')
 
         if( value instanceof List ) {
-            def result = []
+            List<String> result = []
             for( String name : value ) {
                 result.addAll( name.tokenize(':') )
             }
@@ -348,6 +374,9 @@ class TaskConfig extends LazyMap implements Cloneable {
         throw new IllegalArgumentException("Not a valid PublishDir collection [${dirs.getClass().getName()}] $dirs")
     }
 
+    def getContainer() {
+        return get('container')
+    }
 
     /**
      * @return Parse the {@code clusterOptions} configuration option and return the entries as a list of values
@@ -412,6 +441,21 @@ class TaskConfig extends LazyMap implements Cloneable {
         if( opts!=null )
             throw new IllegalArgumentException("Invalid `containerOptions` directive value: $opts [${opts.getClass().getName()}]")
         return CmdLineOptionMap.emptyOption()
+    }
+
+    Map<String, String> getResourceLabels() {
+        return get('resourceLabels') as Map<String, String> ?: Collections.<String,String>emptyMap()
+    }
+
+    String getResourceLabelsAsString() {
+        final res = getResourceLabels()
+        final result = new StringBuilder()
+        int c=0
+        for( Map.Entry<String,String> it : res ) {
+            if(c++>0) result.append(',')
+            result.append(it.key).append('=').append(it.value)
+        }
+        return result
     }
 
     /**

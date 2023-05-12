@@ -151,12 +151,15 @@ class GoogleLifeSciencesHelper {
         return action
     }
 
-    Pipeline createPipeline(List<Action> actions, Resources resources) {
-        new Pipeline().setActions(actions).setResources(resources)
+    Pipeline createPipeline(List<Action> actions, Resources resources, String timeout = null) {
+        final pipeline = new Pipeline()
+        return pipeline.setActions(actions)
+                .setResources(resources)
+                .setTimeout(timeout)
     }
 
     protected List<Action> createActions(GoogleLifeSciencesSubmitRequest req) {
-        def result = []
+        final List<Action> result = []
         if( config.sshDaemon || config.keepAliveOnFailure ) 
             result.add(createSshDaemonAction(req))
         result.add(createStagingAction(req))
@@ -170,8 +173,13 @@ class GoogleLifeSciencesHelper {
     Operation submitPipeline(GoogleLifeSciencesSubmitRequest req) {
         final actions = new ArrayList(5)
         actions.addAll( createActions(req) )
-        final pipeline = createPipeline( actions, createResources(req) )
-        runPipeline(req.project, req.location, pipeline, ["taskName" : req.taskName])
+
+        final pipeline = createPipeline( actions, createResources(req), req.timeout )
+        runPipeline(req.project, req.location, pipeline, getLabels(req))
+    }
+
+    protected Map<String, String>getLabels(GoogleLifeSciencesSubmitRequest req){
+        req.resourceLabels + ["taskName" : req.taskName]
     }
 
     protected Resources createResources(GoogleLifeSciencesSubmitRequest req) {
@@ -189,6 +197,7 @@ class GoogleLifeSciencesHelper {
                 .setDisks([disk])
                 .setServiceAccount(serviceAccount)
                 .setPreemptible(req.preemptible)
+                .setLabels(req.resourceLabels)
 
         def network = new Network()
 

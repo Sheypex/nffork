@@ -22,6 +22,8 @@ Contents:
    dsl2
    cli
    container
+   wave
+   fusion
    conda
    aws
    amazons3
@@ -30,6 +32,7 @@ Contents:
    ignite
    kubernetes
    tracing
+   metrics
    sharing
    metadata
    mail

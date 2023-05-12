@@ -67,7 +67,8 @@ class PluginsFacadeTest extends Specification {
         def defaults = new DefaultPlugins(plugins: [
                 'nf-amazon': new PluginSpec('nf-amazon', '0.1.0'),
                 'nf-google': new PluginSpec('nf-google', '0.1.0'),
-                'nf-tower': new PluginSpec('nf-tower', '0.1.0')
+                'nf-tower': new PluginSpec('nf-tower', '0.1.0'),
+                'nf-wave': new PluginSpec('nf-wave', '0.1.0')
         ])
         and:
         def handler = new PluginsFacade(defaultPlugins: defaults, env: [:])
@@ -85,6 +86,12 @@ class PluginsFacadeTest extends Specification {
 
         when:
         handler = new PluginsFacade(defaultPlugins: defaults, env: [NXF_PLUGINS_DEFAULT:'true'])
+        result = handler.pluginsRequirement([tower:[enabled:false]])
+        then:
+        result == []
+
+        when:
+        handler = new PluginsFacade(defaultPlugins: defaults, env: [NXF_PLUGINS_DEFAULT:'true'])
         result = handler.pluginsRequirement([tower:[enabled:true]])
         then:
         result == [ new PluginSpec('nf-tower', '0.1.0') ]
@@ -94,6 +101,43 @@ class PluginsFacadeTest extends Specification {
         result = handler.pluginsRequirement([:])
         then:
         result == [ new PluginSpec('nf-tower', '0.1.0') ]
+
+        when:
+        handler = new PluginsFacade(defaultPlugins: defaults, env: [:])
+        result = handler.pluginsRequirement([wave:[enabled:true]])
+        then:
+        result == [ new PluginSpec('nf-wave', '0.1.0') ]
+
+        when:
+        handler = new PluginsFacade(defaultPlugins: defaults, env: [:])
+        result = handler.pluginsRequirement([plugins: [ 'foo@1.2.3']])
+        then:
+        result == [ new PluginSpec('foo', '1.2.3') ]
+
+        when:
+        handler = new PluginsFacade(defaultPlugins: defaults, env: [:])
+        result = handler.pluginsRequirement([plugins: [ 'nf-amazon@1.2.3']])
+        then:
+        result == [ new PluginSpec('nf-amazon', '1.2.3') ]
+
+        when:
+        handler = new PluginsFacade(defaultPlugins: defaults, env: [:])
+        result = handler.pluginsRequirement([plugins: [ 'nf-amazon']])
+        then:
+        result == [ new PluginSpec('nf-amazon', '0.1.0') ] // <-- config is taken from the default config
+
+        when:
+        handler = new PluginsFacade(defaultPlugins: defaults, env: [NXF_PLUGINS_DEFAULT:'nf-google@2.0.0'])
+        result = handler.pluginsRequirement([plugins: [ 'nf-amazon@1.2.3']])
+        then:
+        result == [ new PluginSpec('nf-amazon', '1.2.3'), new PluginSpec('nf-google','2.0.0') ]
+
+        when:
+        handler = new PluginsFacade(defaultPlugins: defaults, env: [NXF_PLUGINS_DEFAULT:'nf-google@2.0.0'])
+        result = handler.pluginsRequirement([:])
+        then:
+        result == [ new PluginSpec('nf-google','2.0.0') ]
+
     }
 
     def 'should return default plugins given config' () {
@@ -282,6 +326,31 @@ class PluginsFacadeTest extends Specification {
         [:]                                 | Paths.get('plugins')
     }
 
+    @Unroll
+    def 'should merge plugins' () {
+        given:
+        def facade = new PluginsFacade()
+        def configPlugins = CONFIG.tokenize(',').collect { PluginSpec.parse(it) }
+        def defaultPlugins = DEFAULT.tokenize(',').collect { PluginSpec.parse(it) }
+        def expectedPlugins = EXPECTED.tokenize(',').collect { PluginSpec.parse(it) }
+
+        expect:
+        facade.mergePluginSpecs(configPlugins, defaultPlugins) == expectedPlugins
+
+        where:
+        CONFIG                  | DEFAULT               | EXPECTED
+        ''                      | ''                    | ''
+        'alpha,delta'           | ''                    | 'alpha,delta'
+        ''                      | 'alpha,delta'         | 'alpha,delta'
+        'alpha'                 | 'delta'               | 'alpha,delta'
+        'delta'                 | 'alpha'               | 'delta,alpha'
+        'delta'                 | 'delta'               | 'delta'
+        'delta@1.0.0'           | 'delta'               | 'delta@1.0.0'
+        'delta'                 | 'delta@2.0.0'         | 'delta@2.0.0'
+        'delta@1.0.0'           | 'delta@2.0.0'         | 'delta@1.0.0'     // <-- config has priority
+        'alpha,beta@1.0.0'      | 'delta@2.0.0'         | 'alpha,beta@1.0.0,delta@2.0.0'
+
+    }
 
     // -- check Priority annotation
 
@@ -346,52 +415,4 @@ class PluginsFacadeTest extends Specification {
 
     }
 
-    // -- check scoped exceptions
-
-    @Scoped(priority = 10, value = 'alpha')
-    static class EXT1 implements Bar {}
-
-    @Scoped(priority  = 20, value = 'alpha')
-    static class EXT2 implements Bar {}
-
-    @Scoped(priority  = 30, value = 'beta')
-    static class EXT3 implements Bar {}
-
-    @Scoped(priority  = -1, value = 'beta')
-    static class EXT4 implements Bar {}
-
-    @Scoped('')
-    static class EXT5 implements Bar {}
-
-    def 'should get scoped extensions' () {
-        given:
-        def ext1 = new EXT1()
-        def ext2 = new EXT2()
-        def ext3 = new EXT3()
-        def ext4 = new EXT4()
-        def ext5 = new EXT5()
-        and:
-        def THE_LIST = [ext1, ext2, ext3, ext4, ext5]; THE_LIST.shuffle()
-        and:
-        def facade = Spy( new PluginsFacade() ) {
-            getExtensions(Foo) >> THE_LIST
-        }
-
-        when:
-        def result = facade.getScopedExtensions(Foo)
-        then:
-        // items are returned ordered by priority
-        result == [ ext1, ext4 ] as Set
-
-        when:
-        result = facade.getScopedExtensions(Foo, 'alpha')
-        then:
-        result == [ ext1 ] as Set
-
-        when:
-        result = facade.getScopedExtensions(Foo, 'beta')
-        then:
-        result == [ ext4 ] as Set
-
-    }
 }

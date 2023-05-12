@@ -15,11 +15,12 @@ This allows Nextflow applications to use popular tool collections
 such as `Bioconda <https://bioconda.github.io>`_ whilst taking advantage of the configuration
 flexibility provided by Nextflow.
 
+
 Prerequisites
 -------------
 
-This feature requires Nextflow version 0.30.x or higher and the Conda or
-`Miniconda <https://conda.io/miniconda.html>`_ package manager installed on your system.
+This feature requires the Conda or `Miniconda <https://conda.io/miniconda.html>`_ package manager to be installed on your system.
+
 
 How it works
 ------------
@@ -38,17 +39,23 @@ the path of an existing Conda environment directory.
 You can specify the directory where the Conda environments are stored using the ``conda.cacheDir``
 configuration property (see the :ref:`configuration page <config-conda>` for details).
 When using a computing cluster, make sure to use a shared file system path
-accessible from all computing nodes.
+accessible from all compute nodes.
 
-.. warning:: The Conda environment feature is not supported by executors which use
-  a remote object storage as a work directory eg. AWS Batch.
+.. warning:: The Conda environment feature is not supported by executors that use
+  remote object storage as a work directory e.g. AWS Batch.
 
-Use Mamba to resolve packages
-=============================
+Enabling Conda environment
+==========================
 
-It is also possible to use `mamba <https://github.com/mamba-org/mamba>`_ for speeding up creation of conda environments. For more information on how to enable this feature please refer :ref:`Conda <config-conda>`.
+As of version ``22.08.0-edge`` the use Conda recipes specified using the :ref:`process-conda`
+directive needs to be enabled explicitly by setting the option shown below in the pipeline
+configuration file (i.e. ``nextflow.config``)::
 
-.. warning:: The use of ``mamba`` to create conda environments is an experimental feature and the functionality may change in future releases.
+    conda.enabled = true
+
+
+Alternatively it can be specified by setting the variable ``NXF_CONDA_ENABLED=true`` in your environment
+or by using the ``-with-conda true`` command line option.
 
 
 Use Conda package names
@@ -65,7 +72,6 @@ For example::
     your_command --here
     '''
   }
-
 
 Using the above definition a Conda environment that includes BWA, Samtools and MultiQC tools is created and
 activated when the process is executed.
@@ -104,19 +110,16 @@ The path of an environment file can be specified using the ``conda`` directive::
     '''
   }
 
-.. warning:: The environment file name **must** end with a ``.yml`` or ``.yaml`` suffix otherwise 
-  it won't be properly recognised.
-
+.. warning:: The environment file name **must** have a ``.yml`` or ``.yaml`` extension or else it won't be properly recognised.
 
 Alternatively it is also possible to provide the dependencies using a plain text file,
 just listing each package name as a separate line. For example::
 
-      bioconda::star=2.5.4a
-      bioconda::bwa=0.7.15
-      bioconda::multiqc=1.4
+    bioconda::star=2.5.4a
+    bioconda::bwa=0.7.15
+    bioconda::multiqc=1.4
 
-
-.. note:: Like before the extension matter, make sure such file ends with the ``.txt`` extension.
+.. warning:: Like before, the extension matters. Make sure the dependencies file has a ``.txt`` extension.
 
 
 Use existing Conda environments
@@ -124,7 +127,6 @@ Use existing Conda environments
 
 If you already have a local Conda environment, you can use it in your workflow specifying the
 installation directory of such environment by using the ``conda`` directive::
-
 
   process foo {
     conda '/path/to/an/existing/env/directory'
@@ -135,6 +137,14 @@ installation directory of such environment by using the ``conda`` directive::
   }
 
 
+Use Mamba to resolve packages
+=============================
+
+It is also possible to use `mamba <https://github.com/mamba-org/mamba>`_ to speed up the creation of conda environments. For more information on how to enable this feature please refer to :ref:`Conda <config-conda>`.
+
+.. warning:: This feature is experimental and may change in a future release.
+
+
 Best practices
 --------------
 
@@ -143,7 +153,7 @@ the workflow execution.
 
 Specifying the Conda environments in a separate configuration :ref:`profile <config-profiles>` is therefore
 recommended to allow the execution via a command line option and to enhance the workflow portability. For example::
-  
+
   profiles {
     conda {
       process.conda = 'samtools'
@@ -161,6 +171,5 @@ The above configuration snippet allows the execution either with Conda or Docker
 
 Advanced settings
 -----------------
-
 
 Conda advanced configuration settings are described in the :ref:`Conda <config-conda>` section on the Nextflow configuration page.

@@ -78,8 +78,10 @@ import nextflow.file.FilePorter
 import nextflow.script.BaseScript
 import nextflow.script.BodyDef
 import nextflow.script.ProcessConfig
+import nextflow.script.ScriptMeta
 import nextflow.script.ScriptType
 import nextflow.script.TaskClosure
+import nextflow.script.bundle.ResourcesBundle
 import nextflow.script.params.BasicMode
 import nextflow.script.params.EachInParam
 import nextflow.script.params.EnvInParam
@@ -152,11 +154,6 @@ class TaskProcessor {
      * The script object which defines this task
      */
     protected BaseScript ownerScript
-
-    /**
-     * Gpars thread pool
-     */
-    protected PGroup group = Dataflow.retrieveCurrentDFPGroup()
 
     /**
      * The processor descriptive name
@@ -289,7 +286,7 @@ class TaskProcessor {
         this.config = config
         this.taskBody = taskBody
         this.name = name
-        this.maxForks = config.maxForks as Integer ?: 0
+        this.maxForks = config.maxForks ? config.maxForks as int : 0
         this.forksCount = maxForks ? new LongAdder() : null
     }
 
@@ -466,6 +463,12 @@ class TaskProcessor {
             }
         }
 
+        /**
+         * The thread pool used by GPars. The thread pool to be used is set in the static
+         * initializer of {@link nextflow.cli.CmdRun} class. See also {@link nextflow.util.CustomPoolFactory}
+         */
+        final PGroup group = Dataflow.retrieveCurrentDFPGroup()
+
         /*
          * When one (or more) {@code each} are declared as input, it is created an extra
          * operator which will receive the inputs from the channel (excepts the values over iterate)
@@ -508,15 +511,6 @@ class TaskProcessor {
             opInputs.add( config.getInputs().getChannels().last() )
         }
 
-
-        /*
-         * define the max forks attribute:
-         * - by default the process execution is parallel using the poolSize value
-         * - otherwise use the value defined by the user via 'taskConfig'
-         */
-        final maxForks = maxForks ?: session.poolSize
-        log.trace "Creating operator > $name -- maxForks: $maxForks"
-
         /*
          * finally create the operator
          */
@@ -526,7 +520,7 @@ class TaskProcessor {
         this.openPorts = createPortsArray(opInputs.size())
         config.getOutputs().setSingleton(singleton)
         def interceptor = new TaskProcessorInterceptor(opInputs, singleton)
-        def params = [inputs: opInputs, maxForks: maxForks, listeners: [interceptor] ]
+        def params = [inputs: opInputs, maxForks: session.poolSize, listeners: [interceptor] ]
         def invoke = new InvokeTaskAdapter(this, opInputs.size())
         session.allOperators << (operator = new DataflowOperator(group, params, invoke))
 
@@ -780,7 +774,7 @@ class TaskProcessor {
                 if( resumeDir != workDir )
                     exists = workDir.exists()
                 if( !exists && !workDir.mkdirs() )
-                    throw new IOException("Unable to create folder=$workDir -- check file system permission")
+                    throw new IOException("Unable to create directory=$workDir -- check file system permissions")
             }
             finally {
                 lock.release()
@@ -978,8 +972,8 @@ class TaskProcessor {
             if( error instanceof Error ) throw error
 
             // -- retry without increasing the error counts
-            if( task && (error instanceof NodeTerminationException || error.cause instanceof CloudSpotTerminationException) ) {
-                if( error instanceof NodeTerminationException )
+            if( task && (error.cause instanceof NodeTerminationException || error.cause instanceof CloudSpotTerminationException) ) {
+                if( error.cause instanceof NodeTerminationException )
                     log.info "[$task.hashLog] NOTE: ${error.message} -- Execution is retried"
                 else
                     log.info "[$task.hashLog] NOTE: ${error.message} -- Cause: ${error.cause.message} -- Execution is retried"
@@ -1267,8 +1261,12 @@ class TaskProcessor {
                 result += " -- Check script '${details[0]}' at line: ${details[1]}"
             return result
         }
-
-        return fail.message ?: fail.toString()
+        def result = fail.message ?: fail.toString()
+        def details = LoggerHelper.findErrorLine(fail)
+        if( details ){
+            result += " -- Check script '${details[0]}' at line: ${details[1]}"
+        }
+        return result
     }
 
     /**
@@ -1385,8 +1383,8 @@ class TaskProcessor {
                 throw new IllegalStateException("Unknown bind output parameter type: ${param}")
         }
 
-        // -- finally prints out the task output when 'echo' is true
-        if( task.config.echo ) {
+        // -- finally prints out the task output when 'debug' is true
+        if( task.config.debug ) {
             task.echoStdout(session)
         }
     }
@@ -1476,7 +1474,7 @@ class TaskProcessor {
         }
 
         if( stdout instanceof Path && !stdout.exists() ) {
-            throw new MissingFileException("Missing 'stdout' file: ${stdout} for process > ${task.name}")
+            throw new MissingFileException("Missing 'stdout' file: ${stdout.toUriString()} for process > ${task.name}")
         }
 
         task.setOutput(param, stdout)
@@ -1565,7 +1563,7 @@ class TaskProcessor {
             FileHelper.visitFiles(opts, workDir, namePattern) { Path it -> files.add(it) }
         }
         catch( NoSuchFileException e ) {
-            throw new MissingFileException("Cannot access folder: '$workDir'", e)
+            throw new MissingFileException("Cannot access directory: '$workDir'", e)
         }
 
         return files.sort()
@@ -1630,6 +1628,29 @@ class TaskProcessor {
         return result
     }
 
+    @Memoized
+    ResourcesBundle getModuleBundle() {
+        final script = this.getOwnerScript()
+        final meta = ScriptMeta.get(script)
+        return meta?.isModule() ? meta.getModuleBundle() : null
+    }
+
+    @Memoized
+    protected List<Path> getBinDirs() {
+        final result = new ArrayList(10)
+        // module bundle bin dir have priority, add before
+        if( moduleBundle!=null && session.enableModuleBinaries() )
+            result.addAll(moduleBundle.getBinDirs())
+        // then add project bin dir
+        if( executor.binDir )
+            result.add(executor.binDir)
+        return result
+    }
+
+    @Memoized
+    boolean isLocalWorkDir() {
+        return executor.workDir.fileSystem == FileSystems.default
+    }
 
     /**
      * @return The map holding the shell environment variables for the task to be executed
@@ -1637,7 +1658,7 @@ class TaskProcessor {
     @Memoized
     Map<String,String> getProcessEnvironment() {
 
-        def result = [:]
+        def result = new LinkedHashMap<String,String>(20)
 
         // add the taskConfig environment entries
         if( session.config.env instanceof Map ) {
@@ -1649,16 +1670,21 @@ class TaskProcessor {
             log.debug "Invalid 'session.config.env' object: ${session.config.env?.class?.name}"
         }
 
-
-        // pre-pend the 'bin' folder to the task environment
-        if( executor.binDir ) {
-            if( result.containsKey('PATH') ) {
-                // note: do not escape potential blanks in the bin path because the PATH
-                // variable is enclosed in `"` when in rendered in the launcher script -- see #630
-                result['PATH'] =  "${executor.binDir}:${result['PATH']}".toString()
-            }
-            else {
-                result['PATH'] = "${executor.binDir}:\$PATH".toString()
+        // append the 'bin' folder to the task environment
+        List<Path> paths
+        if( isLocalWorkDir() && (paths=getBinDirs()) ) {
+            for( Path it : paths ) {
+                if( result.containsKey('PATH') ) {
+                    // note: do not escape potential blanks in the bin path because the PATH
+                    // variable is enclosed in `"` when in rendered in the launcher script -- see #630
+                    result['PATH'] =  "${result['PATH']}:${it}".toString()
+                }
+                else {
+                    // note: append custom bin path *after* the system PATH
+                    // to prevent unnecessary network round-trip for each command
+                    // when the added path is a shared file system directory
+                    result['PATH'] = "\$PATH:${it}".toString()
+                }
             }
         }
 
@@ -1953,7 +1979,7 @@ class TaskProcessor {
             task.setInput(param, resolved)
         }
 
-        // -- set the delegate map as context ih the task config
+        // -- set the delegate map as context in the task config
         //    so that lazy directives will be resolved against it
         task.config.context = ctx
 
@@ -1985,7 +2011,7 @@ class TaskProcessor {
         List keys = [ session.uniqueId, name, task.source ]
 
         if( task.isContainerEnabled() )
-            keys << task.container
+            keys << task.getContainerFingerprint()
 
         // add all the input name-value pairs to the key generator
         for( Map.Entry<InParam,Object> it : task.inputs ) {
@@ -2033,7 +2059,7 @@ class TaskProcessor {
             return CacheHelper.hasher(keys, mode).hash()
         }
         catch (Throwable e) {
-            final msg = "Oops.. something wrong happened while creating task '$name' unique id -- Offending keys: ${ keys.collect {"\n - type=${it.getClass().getName()} value=$it"} }"
+            final msg = "Oops.. something went wrong while creating task '$name' unique id -- Offending keys: ${ keys.collect {"\n - type=${it.getClass().getName()} value=$it"} }"
             throw new UnexpectedException(msg,e)
         }
     }

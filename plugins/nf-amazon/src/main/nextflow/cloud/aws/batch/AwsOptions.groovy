@@ -41,6 +41,8 @@ class AwsOptions implements CloudTransferOptions {
 
     public static final int DEFAULT_AWS_MAX_ATTEMPTS = 5
 
+    public static final int DEFAULT_MAX_SPOT_ATTEMPTS = 5
+
     private Map<String,String> env = System.getenv()
 
     String cliPath
@@ -48,6 +50,8 @@ class AwsOptions implements CloudTransferOptions {
     String storageClass
 
     String storageEncryption
+
+    String storageKmsKeyId
 
     String remoteBinDir
 
@@ -61,6 +65,10 @@ class AwsOptions implements CloudTransferOptions {
 
     String retryMode
 
+    int maxSpotAttempts
+
+    Boolean debug
+
     volatile Boolean fetchInstanceType
 
     /**
@@ -69,9 +77,24 @@ class AwsOptions implements CloudTransferOptions {
     String jobRole
 
     /**
+     * The name of the logs group used by jobs
+     */
+    String logsGroup
+
+    /**
      * Volume mounts
      */
     List<String> volumes
+
+    /**
+     * The share identifier for all tasks when using fair-share scheduling
+     */
+    String shareIdentifier
+
+    /**
+     * The scheduling priority for all tasks when using fair-share scheduling (0 to 9999)
+     */
+    Integer schedulingPriority
 
     /**
      * @return A list of volume mounts using the docker cli convention ie. `/some/path` or `/some/path:/container/path` or `/some/path:/container/path:ro`
@@ -88,16 +111,22 @@ class AwsOptions implements CloudTransferOptions {
 
     AwsOptions(Session session) {
         cliPath = getCliPath0(session)
+        debug = session.config.navigate('aws.client.debug') as Boolean
         storageClass = session.config.navigate('aws.client.uploadStorageClass') as String
+        storageKmsKeyId = session.config.navigate('aws.client.storageKmsKeyId') as String
         storageEncryption = session.config.navigate('aws.client.storageEncryption') as String
         maxParallelTransfers = session.config.navigate('aws.batch.maxParallelTransfers', MAX_TRANSFER) as int
         maxTransferAttempts = session.config.navigate('aws.batch.maxTransferAttempts', defaultMaxTransferAttempts()) as int
         delayBetweenAttempts = session.config.navigate('aws.batch.delayBetweenAttempts', DEFAULT_DELAY_BETWEEN_ATTEMPTS) as Duration
+        maxSpotAttempts = session.config.navigate('aws.batch.maxSpotAttempts', DEFAULT_MAX_SPOT_ATTEMPTS) as int
         region = session.config.navigate('aws.region') as String
         volumes = makeVols(session.config.navigate('aws.batch.volumes'))
         jobRole = session.config.navigate('aws.batch.jobRole')
+        logsGroup = session.config.navigate('aws.batch.logsGroup')
         fetchInstanceType = session.config.navigate('aws.batch.fetchInstanceType')
         retryMode = session.config.navigate('aws.batch.retryMode', 'standard')
+        shareIdentifier = session.config.navigate('aws.batch.shareIdentifier')
+        schedulingPriority = session.config.navigate('aws.batch.schedulingPriority', 0) as Integer
         if( retryMode == 'built-in' )
             retryMode = null // this force falling back on NF built-in retry mode instead of delegating to AWS CLI tool
         if( retryMode && retryMode !in VALID_RETRY_MODES )
@@ -134,10 +163,14 @@ class AwsOptions implements CloudTransferOptions {
     }
 
     void setStorageEncryption(String value) {
-        if( value in [null,'AES256'] )
+        if( value in [null,'AES256','aws:kms'] )
             this.storageEncryption = value
         else
             log.warn "Unsupported AWS storage-encryption: $value"
+    }
+
+    void setStorageKmsKeyId(String value) {
+        this.storageKmsKeyId = value
     }
 
     void setCliPath(String value) {

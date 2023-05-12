@@ -146,7 +146,7 @@ class ProcessConfigTest extends Specification {
         def config = new ProcessConfig(script)
 
         expect:
-        config.containsKey('echo')
+        config.containsKey('debug')
         config.containsKey('shell')
         !config.containsKey('xyz')
         !config.containsKey('maxForks')
@@ -335,6 +335,24 @@ class ProcessConfigTest extends Specification {
         config.label('bar')
         then:
         config.getLabels() == ['foo','bar']
+    }
+
+    def 'should apply resource labels config' () {
+        given:
+        def config = new ProcessConfig(Mock(BaseScript))
+        expect:
+        config.getResourceLabels() == [:]
+
+        when:
+        config.resourceLabels([foo: 'one', bar: 'two'])
+        then:
+        config.getResourceLabels() == [foo: 'one', bar: 'two']
+
+        when:
+        config.resourceLabels([foo: 'new one', baz: 'three'])
+        then:
+        config.getResourceLabels() == [foo: 'new one', bar: 'two', baz: 'three']
+
     }
 
     def 'should check a valid label' () {
@@ -642,6 +660,7 @@ class ProcessConfigTest extends Specification {
         then:
         process.accelerator == [request: 1, limit:5]
     }
+
 
     def 'should get default config path' () {
         given:

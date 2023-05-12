@@ -16,13 +16,16 @@
  */
 
 package nextflow.container
+
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.util.regex.Pattern
 
+import groovy.transform.CompileStatic
 import groovy.transform.PackageScope
+import groovy.util.logging.Slf4j
+import nextflow.executor.Executor
 import nextflow.util.Escape
-
 /**
  * Helper class to normalise a container image name depending
  * the the current select container engine
@@ -30,6 +33,8 @@ import nextflow.util.Escape
  * @author Emilio Palumbo <emilio.palumbo@crg.eu>
  * @author Paolo Di Tommaso <paolo.ditommaso@gmail.com>
  */
+@Slf4j
+@CompileStatic
 class ContainerHandler {
 
     final private static Path CWD = Paths.get('.').toAbsolutePath()
@@ -38,8 +43,11 @@ class ContainerHandler {
 
     private Path baseDir
 
-    ContainerHandler(Map containerConfig) {
+    private Executor executor
+
+    ContainerHandler(Map containerConfig, Executor executor=null) {
         this(containerConfig, CWD)
+        this.executor = executor
     }
 
     ContainerHandler(Map containerConfig, Path dir) {
@@ -52,32 +60,36 @@ class ContainerHandler {
     Path getBaseDir() { baseDir }
 
     String normalizeImageName(String imageName) {
+        // when the executor is container native, it's assumed
+        // the use of docker plain image name format
+        if( executor?.isContainerNative() ) {
+            return normalizeDockerImageName(imageName)
+        }
         final engine = config.getEngine()
         if( engine == 'shifter' ) {
-            normalizeShifterImageName(imageName)
+            return normalizeShifterImageName(imageName)
         }
-        else if( engine == 'udocker' ) {
-            normalizeUdockerImageName(imageName)
+        if( engine == 'udocker' ) {
+            return normalizeUdockerImageName(imageName)
         }
-        else if( engine == 'singularity' ) {
+        if( engine == 'singularity' ) {
             final normalizedImageName = normalizeSingularityImageName(imageName)
             if( !config.isEnabled() || !normalizedImageName )
                 return normalizedImageName
             final requiresCaching = normalizedImageName =~ IMAGE_URL_PREFIX
             
             final result = requiresCaching ? createSingularityCache(this.config, normalizedImageName) : normalizedImageName
-            Escape.path(result)
+            return Escape.path(result)
         }
-        else if( engine == 'charliecloud' ) {
+        if( engine == 'charliecloud' ) {
             // if the imagename starts with '/' it's an absolute path
             // otherwise we assume it's in a remote registry and pull it from there
             final requiresCaching = !imageName.startsWith('/')
             final result = requiresCaching ? createCharliecloudCache(this.config, imageName) : imageName
-            Escape.path(result)
+            return Escape.path(result)
         }
-        else {
-            normalizeDockerImageName(imageName)
-        }
+        // fallback to docker
+        return normalizeDockerImageName(imageName)
     }
 
     @PackageScope
@@ -209,4 +221,5 @@ class ContainerHandler {
         // prefix it with the `docker://` pseudo protocol used by singularity to download it
         return "docker://${img}"
     }
+
 }

@@ -32,6 +32,9 @@ import nextflow.dag.DagRenderer
 import nextflow.dag.DotRenderer
 import nextflow.dag.GexfRenderer
 import nextflow.dag.GraphvizRenderer
+import nextflow.dag.MermaidRenderer
+import nextflow.exception.AbortOperationException
+import nextflow.file.FileHelper
 import nextflow.processor.TaskHandler
 import nextflow.processor.TaskProcessor
 /**
@@ -43,7 +46,7 @@ import nextflow.processor.TaskProcessor
 @Slf4j
 class GraphObserver implements TraceObserver {
 
-    static public final String DEF_FILE_NAME = 'dag.dot'
+    static public final String DEF_FILE_NAME = "dag-${TraceHelper.launchTimestampFmt()}.dot"
 
     private Path file
 
@@ -78,6 +81,14 @@ class GraphObserver implements TraceObserver {
         this.dag = session.dag
         this.session = session
         this.aggregator = new ResourcesAggregator(session)
+        // check file existance
+        final attrs = FileHelper.readAttributes(file)
+        if( attrs ) {
+            if( overwrite && (attrs.isDirectory() || !file.delete()) )
+                throw new AbortOperationException("Unable to overwrite existing DAG file: ${file.toUriString()}")
+            else if( !overwrite )
+                throw new AbortOperationException("DAG file already exists: ${file.toUriString()} -- enable `dag.overwrite` in your config file to overwrite existing DAG files")
+        }
     }
 
     @Override
@@ -85,10 +96,6 @@ class GraphObserver implements TraceObserver {
         // -- normalise the DAG
         dag.normalize()
         // -- render it to a file
-        if( overwrite )
-            Files.deleteIfExists(file)
-        else
-            file.rollFile()
         createRender().renderDocument(dag,file)
     }
 
@@ -105,6 +112,10 @@ class GraphObserver implements TraceObserver {
 
         else if ( format == 'dax')
             new DAXRenderer(records, session)
+
+        else if( format == 'mmd' )
+            new MermaidRenderer()
+
         else
             new GraphvizRenderer(name, format)
     }

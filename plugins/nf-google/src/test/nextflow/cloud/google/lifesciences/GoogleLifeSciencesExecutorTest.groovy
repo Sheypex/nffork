@@ -58,7 +58,7 @@ class GoogleLifeSciencesExecutorTest extends GoogleSpecification {
         and:
         def executor = Spy(GoogleLifeSciencesExecutor)
         executor.session = session
-        executor.env = ENV()
+        executor.@env = ENV()
 
         when:
         executor.register()
@@ -82,7 +82,7 @@ class GoogleLifeSciencesExecutorTest extends GoogleSpecification {
         and:
         def executor = Spy(GoogleLifeSciencesExecutor)
         executor.session = session
-        executor.env = ENV()
+        executor.@env = ENV()
 
         when:
         executor.register()
@@ -106,7 +106,7 @@ class GoogleLifeSciencesExecutorTest extends GoogleSpecification {
         and:
         def executor = Spy(GoogleLifeSciencesExecutor)
         executor.session = session
-        executor.env = ENV()
+        executor.@env = ENV()
 
         when:
         executor.register()
@@ -147,7 +147,7 @@ class GoogleLifeSciencesExecutorTest extends GoogleSpecification {
         executor.register()
         then:
         def err = thrown(AbortOperationException)
-        err.message == "Missing Google project Id -- Specify it adding the setting `google.project='your-project-id'` in the nextflow.config file"
+        err.message == "Missing Google project Id -- Specify it by setting `google.project='your-project-id'` in the nextflow.config file"
     }
 
     def 'should stop on missing bucket' () {

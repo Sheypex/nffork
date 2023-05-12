@@ -141,7 +141,7 @@ class TaskContext implements Map<String,Object>, Cloneable {
             return script.getBinding().getVariable(property.toString())
         }
 
-        throw new MissingPropertyException("Unknown variable '$property' -- Make sure it is not misspelt and defined somewhere in the script before using it", property as String, null)
+        throw new MissingPropertyException("Unknown variable '$property' -- Make sure it is not misspelled or defined later in the script", property as String, null)
     }
 
     @Override
@@ -315,7 +315,7 @@ class TaskContext implements Map<String,Object>, Cloneable {
             return path
 
         // make from the module dir
-        def module = NF.isDsl2Final() ? ScriptMeta.get(this.script)?.getModuleDir() : null
+        def module = NF.isDsl2() ? ScriptMeta.get(this.script)?.getModuleDir() : null
         if( module ) {
             def target = module.resolve('templates').resolve(path)
             if (Files.exists(target))
