@@ -1,5 +1,6 @@
 package nextflow.dag
 
+import groovy.json.JsonOutput
 import nextflow.Session
 import nextflow.processor.TaskId
 import nextflow.trace.TraceRecord
@@ -19,6 +20,7 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import java.text.SimpleDateFormat
 import java.nio.file.Path
+import java.util.stream.Collectors
 
 
 @Slf4j
@@ -96,8 +98,24 @@ class DAXRenderer implements DagRenderer {
         this.dag = dag
         this.path = file
         renderDAX()
+        renderFilesInfo()
     }
 
+    private void renderFilesInfo() {
+        def json_str = JsonOutput.toJson(files.stream().map { f ->
+            return [
+                    name  : f.name,
+                    tag   : f.tag,
+                    size  : f.fileSize,
+                    output: f.output,
+                    id    : f.taskId
+            ]
+        }.collect(Collectors.toList()))
+
+        def json_beauty = JsonOutput.prettyPrint(json_str)
+        File files_json = new File("files.json")
+        files_json.write(json_beauty)
+    }
     /**
      * creates a <filename>.dax representation in the current directory
      */
@@ -161,7 +179,7 @@ class DAXRenderer implements DagRenderer {
             int cores = record.value.get("cpus")
 
             //WRENCH assumes the runtime is the time the task would need to run on a single core
-            w.writeAttribute("runtime", Double.toString(runtime*cores))
+            w.writeAttribute("runtime", Double.toString(runtime * cores))
             w.writeAttribute("runtime_raw", Double.toString(runtime))
             w.writeAttribute("numcores", cores.toString())
 
@@ -247,7 +265,7 @@ class DAXRenderer implements DagRenderer {
                 String taskId = record.get("task_id")
                 Path filePath = Paths.get(f.toString().split(" ").first())
                 String tag = record.get("tag")
-                if(filePath.toString()=="-f")continue
+                if (filePath.toString() == "-f") continue
                 long fileSize = Files.size(filePath)
 
                 //create an input FileDependency
@@ -263,10 +281,10 @@ class DAXRenderer implements DagRenderer {
         }
         //String list of input files
         String[] inputsString = files.stream()
-                                    .filter(file -> !file.output)
-                                    .filter(file -> file.taskId == record.get("task_id").toString())
-                                    .map(file -> file.name)
-                                    .toArray()
+                .filter(file -> !file.output)
+                .filter(file -> file.taskId == record.get("task_id").toString())
+                .map(file -> file.name)
+                .toArray()
 
         //parse output file
         File[] outputFiles = Files.walk(path)
@@ -285,9 +303,9 @@ class DAXRenderer implements DagRenderer {
                 Path filePath = file.toPath()
                 FileDependency addOutput = new FileDependency(file.name, record.get("task_id").toString(), filePath, record.get("tag").toString(), Files.size(filePath), true)
                 files.add(addOutput)
-        }
             }
-        catch (IOException io){
+        }
+        catch (IOException io) {
             io.printStackTrace()
         }
 
@@ -298,12 +316,12 @@ class DAXRenderer implements DagRenderer {
 
         //filter all the inputs for this task
         FileDependency[] inputs = files.stream()
-                    .filter(file -> !file.output)
-                    .filter(file -> file.taskId == record.get("task_id").toString())
-                    .toArray()
+                .filter(file -> !file.output)
+                .filter(file -> file.taskId == record.get("task_id").toString())
+                .toArray()
 
         //write down all the input files for this task
-        for (i in inputs){
+        for (i in inputs) {
             w.writeStartElement("uses")
             w.writeAttribute("file", i.tag + "_" + i.name)
             w.writeAttribute("link", "input")
@@ -317,14 +335,13 @@ class DAXRenderer implements DagRenderer {
         HashSet<FileDependency> filtered = new HashSet<>()
         List<FileDependency> outputs = files.stream()
                 .filter(file -> file.output)
-                .filter(file -> file.taskId==record.get("task_id").toString())
+                .filter(file -> file.taskId == record.get("task_id").toString())
                 .filter(file -> filtered.add(file.name))
                 .toArray()
 
 
-
         //write down all the output-files for this task
-        for (o in outputs){
+        for (o in outputs) {
             w.writeStartElement("uses")
             w.writeAttribute("file", "task_id_" + o.taskId + "_" + o.name)
             w.writeAttribute("link", "output")
@@ -335,40 +352,39 @@ class DAXRenderer implements DagRenderer {
     }
 
 
+    private void writeDependencies(XMLStreamWriter w) {
 
-    private void writeDependencies(XMLStreamWriter w){
-
-        for (record in records){
+        for (record in records) {
             //get all inputs for this task
             FileDependency[] inputs = files.stream()
-                            .filter(file -> !file.output)
-                            .filter(file -> file.taskId == record.value.get("task_id").toString())
-                            .toArray()
+                    .filter(file -> !file.output)
+                    .filter(file -> file.taskId == record.value.get("task_id").toString())
+                    .toArray()
             //save the parents for this task
             List<String> parents = new ArrayList<>()
 
-            for (input in inputs){
+            for (input in inputs) {
                 ArrayList<String> parentsForInput = files.stream()
                         .filter(file -> file.output)
                         .filter(file -> file.name == input.name)
-                        //filter out duplicates
+                //filter out duplicates
                         .filter(file -> file.tag == input.tag)
-                        //filter out cycles
-                        .filter(file -> file.taskId.toInteger()<record.value.taskId)
+                //filter out cycles
+                        .filter(file -> file.taskId.toInteger() < record.value.taskId)
                         .map(file -> file.taskId)
                         .toArray()
                 //add the parents for this file to the parents list for this task
                 parents.addAll(parentsForInput)
-                }
+            }
             //eliminate duplicates
             String[] parents_array = parents.stream().distinct().toArray()
 
             //print on the xml file
-            if(parents_array.length>0){
+            if (parents_array.length > 0) {
                 //<child ref="xyz">
                 w.writeStartElement("child")
                 w.writeAttribute("ref", record.value.get("task_id").toString())
-                for(parent in parents_array){
+                for (parent in parents_array) {
                     //<parent>
                     w.writeStartElement("parent")
                     w.writeAttribute("ref", parent)
@@ -401,10 +417,10 @@ class DAXRenderer implements DagRenderer {
             this.output = output
         }
 
-        String toString(){
+        String toString() {
             String inputOrOutput = output ? "Output" : "Input"
             return inputOrOutput + ": " + "name: " + this.name + " taskId: " + this.taskId + " directory: " \
-            + this.directory.toString() + " tag: " + this.tag + " fileSize: " + this.fileSize
+             + this.directory.toString() + " tag: " + this.tag + " fileSize: " + this.fileSize
         }
     }
 
