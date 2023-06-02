@@ -114,7 +114,7 @@ class DAXRenderer implements DagRenderer {
         }.collect(Collectors.toList()))
 
         def json_beauty = JsonOutput.prettyPrint(json_str)
-        File files_json = new File("files.json")
+        File files_json = new File(this.path.baseName + "_files.json")
         files_json.write(json_beauty)
     }
     /**
