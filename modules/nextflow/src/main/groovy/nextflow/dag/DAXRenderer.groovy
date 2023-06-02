@@ -104,11 +104,12 @@ class DAXRenderer implements DagRenderer {
     private void renderFilesInfo() {
         def json_str = JsonOutput.toJson(files.stream().map { f ->
             return [
-                    name  : f.name,
-                    tag   : f.tag,
-                    size  : f.fileSize,
-                    output: f.output,
-                    id    : f.taskId
+                    taskName: records.get(TaskId.of(f.taskId)).get("name"),
+                    fileName: f.name,
+                    tag     : f.tag,
+                    size    : f.fileSize,
+                    output  : f.output,
+                    id      : f.taskId
             ]
         }.collect(Collectors.toList()))
 
@@ -420,7 +421,7 @@ class DAXRenderer implements DagRenderer {
         String toString() {
             String inputOrOutput = output ? "Output" : "Input"
             return inputOrOutput + ": " + "name: " + this.name + " taskId: " + this.taskId + " directory: " \
-             + this.directory.toString() + " tag: " + this.tag + " fileSize: " + this.fileSize
+                + this.directory.toString() + " tag: " + this.tag + " fileSize: " + this.fileSize
         }
     }
 
